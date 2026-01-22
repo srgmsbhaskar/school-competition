@@ -80,44 +80,40 @@ const UserManagement: React.FC = () => {
     setIsCreating(true);
 
     try {
-      // Sign up the user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: newUser.email,
-        password: newUser.password,
-        options: {
-          emailRedirectTo: window.location.origin,
-        },
+      // Use edge function to create user with proper permissions
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionData.session?.access_token}`,
+          },
+          body: JSON.stringify({
+            email: newUser.email,
+            password: newUser.password,
+            fullName: newUser.fullName,
+            role: newUser.role,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create user');
+      }
+
+      toast({
+        title: 'Success',
+        description: `User ${newUser.email} created successfully`,
       });
 
-      if (authError) throw authError;
-
-      if (authData.user) {
-        // Create profile
-        const { error: profileError } = await supabase.from('profiles').insert({
-          id: authData.user.id,
-          email: newUser.email,
-          full_name: newUser.fullName,
-        });
-
-        if (profileError) throw profileError;
-
-        // Assign role
-        const { error: roleError } = await supabase.from('user_roles').insert({
-          user_id: authData.user.id,
-          role: newUser.role,
-        });
-
-        if (roleError) throw roleError;
-
-        toast({
-          title: 'Success',
-          description: `User ${newUser.email} created successfully`,
-        });
-
-        setIsDialogOpen(false);
-        setNewUser({ email: '', password: '', fullName: '', role: 'teacher' });
-        fetchUsers();
-      }
+      setIsDialogOpen(false);
+      setNewUser({ email: '', password: '', fullName: '', role: 'teacher' });
+      fetchUsers();
     } catch (error: any) {
       console.error('Error creating user:', error);
       toast({
