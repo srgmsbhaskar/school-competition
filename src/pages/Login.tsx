@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -12,9 +12,26 @@ const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, user, role, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user && role) {
+      switch (role) {
+        case 'admin':
+          navigate('/admin', { replace: true });
+          break;
+        case 'coordinator':
+          navigate('/coordinator', { replace: true });
+          break;
+        case 'teacher':
+          navigate('/teacher', { replace: true });
+          break;
+      }
+    }
+  }, [user, role, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,13 +46,13 @@ const Login: React.FC = () => {
           description: error.message,
           variant: 'destructive',
         });
+        setIsLoading(false);
       } else {
         toast({
           title: 'Welcome!',
           description: 'Login successful. Redirecting...',
         });
-        // Navigation will be handled by App.tsx based on role
-        navigate('/');
+        // Don't set isLoading to false - let the useEffect handle redirect
       }
     } catch (error) {
       toast({
@@ -43,7 +60,6 @@ const Login: React.FC = () => {
         description: 'An unexpected error occurred',
         variant: 'destructive',
       });
-    } finally {
       setIsLoading(false);
     }
   };
