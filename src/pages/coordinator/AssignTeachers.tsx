@@ -208,14 +208,14 @@ const AssignTeachers: React.FC = () => {
                       </TableCell>
                       <TableCell>
                         <Select
-                          value={getAssignedTeacher(classNum)}
-                          onValueChange={(value) => handleAssignmentChange(classNum, value)}
+                          value={getAssignedTeacher(classNum) || "none"}
+                          onValueChange={(value) => handleAssignmentChange(classNum, value === "none" ? "" : value)}
                         >
                           <SelectTrigger className="w-64">
                             <SelectValue placeholder="Select teacher" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">No teacher assigned</SelectItem>
+                            <SelectItem value="none">No teacher assigned</SelectItem>
                             {teachers.map((teacher) => (
                               <SelectItem key={teacher.id} value={teacher.id}>
                                 {teacher.full_name}
