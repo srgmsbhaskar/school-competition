@@ -53,6 +53,51 @@ export type Database = {
         }
         Relationships: []
       }
+      competition_prizes: {
+        Row: {
+          awarded_by: string | null
+          competition_id: string
+          created_at: string
+          id: string
+          prize: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          awarded_by?: string | null
+          competition_id: string
+          created_at?: string
+          id?: string
+          prize: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          awarded_by?: string | null
+          competition_id?: string
+          created_at?: string
+          id?: string
+          prize?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competition_prizes_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competition_prizes_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competitions: {
         Row: {
           certificate_template_url: string | null
@@ -123,6 +168,7 @@ export type Database = {
           category_id: string | null
           competition_id: string
           created_at: string | null
+          event_type: Database["public"]["Enums"]["event_type"]
           id: string
           name: string
         }
@@ -130,6 +176,7 @@ export type Database = {
           category_id?: string | null
           competition_id: string
           created_at?: string | null
+          event_type?: Database["public"]["Enums"]["event_type"]
           id?: string
           name: string
         }
@@ -137,6 +184,7 @@ export type Database = {
           category_id?: string | null
           competition_id?: string
           created_at?: string | null
+          event_type?: Database["public"]["Enums"]["event_type"]
           id?: string
           name?: string
         }
@@ -344,6 +392,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "coordinator" | "teacher"
+      event_type: "solo" | "group"
       prize_type:
         | "participation"
         | "first"
@@ -482,6 +531,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "coordinator", "teacher"],
+      event_type: ["solo", "group"],
       prize_type: [
         "participation",
         "first",
