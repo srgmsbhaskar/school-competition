@@ -29,6 +29,7 @@ interface Event {
   name: string;
   competition_id: string;
   category_id: string | null;
+  event_type: 'solo' | 'group';
   category?: Category;
   classes: number[];
 }
@@ -47,6 +48,7 @@ const EventsPage: React.FC = () => {
   const [newEvent, setNewEvent] = useState({
     name: '',
     category_id: '',
+    event_type: 'solo' as 'solo' | 'group',
     classes: [] as number[],
   });
   const { toast } = useToast();
@@ -112,13 +114,14 @@ const EventsPage: React.FC = () => {
 
     setIsCreating(true);
     try {
-      // Create the event
+      // Create the event with event_type
       const { data: eventData, error: eventError } = await supabase
         .from('events')
         .insert({
           name: newEvent.name,
           competition_id: selectedCompetition,
           category_id: newEvent.category_id || null,
+          event_type: newEvent.event_type,
         })
         .select()
         .single();
@@ -145,7 +148,7 @@ const EventsPage: React.FC = () => {
       });
 
       setIsDialogOpen(false);
-      setNewEvent({ name: '', category_id: '', classes: [] });
+      setNewEvent({ name: '', category_id: '', event_type: 'solo', classes: [] });
       fetchData();
     } catch (error: any) {
       console.error('Error creating event:', error);
@@ -228,6 +231,21 @@ const EventsPage: React.FC = () => {
                         placeholder="Enter event name"
                         required
                       />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="eventType">Event Type</Label>
+                      <Select
+                        value={newEvent.event_type}
+                        onValueChange={(value: 'solo' | 'group') => setNewEvent({ ...newEvent, event_type: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="solo">Solo</SelectItem>
+                          <SelectItem value="group">Group</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="category">Category</Label>
@@ -313,6 +331,7 @@ const EventsPage: React.FC = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Event Name</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Eligible Classes</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -323,8 +342,13 @@ const EventsPage: React.FC = () => {
                     <TableRow key={event.id}>
                       <TableCell className="font-medium">{event.name}</TableCell>
                       <TableCell>
+                        <Badge variant={event.event_type === 'solo' ? 'default' : 'secondary'}>
+                          {event.event_type === 'solo' ? 'Solo' : 'Group'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
                         {event.category?.name ? (
-                          <Badge variant="secondary">{event.category.name}</Badge>
+                          <Badge variant="outline">{event.category.name}</Badge>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}

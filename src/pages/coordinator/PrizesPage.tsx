@@ -4,10 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Save } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Loader2, Save, Trophy, Award } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Competition {
   id: string;
@@ -19,6 +21,7 @@ interface Event {
   id: string;
   name: string;
   competition_id: string;
+  event_type: 'solo' | 'group';
 }
 
 interface Participation {
@@ -27,6 +30,7 @@ interface Participation {
   event_id: string;
   prize: string | null;
   student: {
+    id: string;
     name: string;
     admission_no: string;
     class: number;
@@ -34,16 +38,35 @@ interface Participation {
   };
 }
 
-const prizeOptions = [
-  { value: 'participation', label: 'Participation' },
+interface Student {
+  id: string;
+  name: string;
+  admission_no: string;
+  class: number;
+  section: string;
+}
+
+interface CompetitionPrize {
+  id: string;
+  competition_id: string;
+  student_id: string;
+  prize: string;
+  student?: Student;
+}
+
+// Individual event prizes (for solo events)
+const individualPrizeOptions = [
   { value: 'first', label: 'First' },
   { value: 'second', label: 'Second' },
-  { value: 'runner_up_1', label: 'Runner Up 1' },
-  { value: 'runner_up_2', label: 'Runner Up 2' },
   { value: 'third', label: 'Third' },
   { value: 'consolation', label: 'Consolation' },
-  { value: 'champion', label: 'Champion' },
-  { value: 'other', label: 'Other' },
+];
+
+// Competition-level prizes
+const competitionPrizeOptions = [
+  { value: 'winner', label: 'Winner' },
+  { value: 'runner_up_1', label: 'Runner Up 1' },
+  { value: 'runner_up_2', label: 'Runner Up 2' },
 ];
 
 const PrizesPage: React.FC = () => {
@@ -55,7 +78,14 @@ const PrizesPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [updatedPrizes, setUpdatedPrizes] = useState<Record<string, string>>({});
+  
+  // Competition prizes state
+  const [competitionPrizes, setCompetitionPrizes] = useState<CompetitionPrize[]>([]);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [updatedCompetitionPrizes, setUpdatedCompetitionPrizes] = useState<Record<string, string>>({});
+  
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchCompetitions = async () => {
@@ -80,6 +110,8 @@ const PrizesPage: React.FC = () => {
         setSelectedEvent('');
       };
       fetchEvents();
+      fetchCompetitionPrizes();
+      fetchAllStudents();
     }
   }, [selectedCompetition]);
 
@@ -99,6 +131,23 @@ const PrizesPage: React.FC = () => {
     }
   }, [selectedEvent]);
 
+  const fetchCompetitionPrizes = async () => {
+    const { data } = await supabase
+      .from('competition_prizes')
+      .select('*, student:students(*)')
+      .eq('competition_id', selectedCompetition);
+    setCompetitionPrizes(data || []);
+    setUpdatedCompetitionPrizes({});
+  };
+
+  const fetchAllStudents = async () => {
+    const { data } = await supabase
+      .from('students')
+      .select('*')
+      .order('name');
+    setAllStudents(data || []);
+  };
+
   const handlePrizeChange = (participationId: string, prize: string) => {
     setUpdatedPrizes((prev) => ({
       ...prev,
@@ -106,7 +155,14 @@ const PrizesPage: React.FC = () => {
     }));
   };
 
-  const handleSave = async () => {
+  const handleCompetitionPrizeChange = (prizeType: string, studentId: string) => {
+    setUpdatedCompetitionPrizes((prev) => ({
+      ...prev,
+      [prizeType]: studentId,
+    }));
+  };
+
+  const handleSaveEventPrizes = async () => {
     setIsSaving(true);
     try {
       const updates = Object.entries(updatedPrizes).map(([id, prize]) => ({
@@ -121,17 +177,9 @@ const PrizesPage: React.FC = () => {
           .eq('id', update.id);
       }
 
-      // Mark competition as completed if needed
-      if (selectedCompetition) {
-        await supabase
-          .from('competitions')
-          .update({ is_completed: true })
-          .eq('id', selectedCompetition);
-      }
-
       toast({
         title: 'Success',
-        description: 'Prizes updated successfully',
+        description: 'Event prizes updated successfully',
       });
 
       setUpdatedPrizes({});
@@ -154,14 +202,72 @@ const PrizesPage: React.FC = () => {
     }
   };
 
+  const handleSaveCompetitionPrizes = async () => {
+    setIsSaving(true);
+    try {
+      for (const [prizeType, studentId] of Object.entries(updatedCompetitionPrizes)) {
+        if (!studentId) continue;
+        
+        // Check if this prize already exists
+        const existing = competitionPrizes.find((p) => p.prize === prizeType);
+        
+        if (existing) {
+          await supabase
+            .from('competition_prizes')
+            .update({ student_id: studentId })
+            .eq('id', existing.id);
+        } else {
+          await supabase
+            .from('competition_prizes')
+            .insert({
+              competition_id: selectedCompetition,
+              student_id: studentId,
+              prize: prizeType,
+              awarded_by: user?.id,
+            });
+        }
+      }
+
+      // Mark competition as completed
+      await supabase
+        .from('competitions')
+        .update({ is_completed: true })
+        .eq('id', selectedCompetition);
+
+      toast({
+        title: 'Success',
+        description: 'Competition prizes updated successfully',
+      });
+
+      fetchCompetitionPrizes();
+    } catch (error: any) {
+      console.error('Error saving competition prizes:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to save competition prizes',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const getPrizeValue = (participation: Participation) => {
     return updatedPrizes[participation.id] ?? participation.prize ?? '';
+  };
+
+  const getCompetitionPrizeStudent = (prizeType: string) => {
+    if (updatedCompetitionPrizes[prizeType]) {
+      return updatedCompetitionPrizes[prizeType];
+    }
+    const existing = competitionPrizes.find((p) => p.prize === prizeType);
+    return existing?.student_id || '';
   };
 
   const getPrizeBadgeVariant = (prize: string | null) => {
     switch (prize) {
       case 'first':
-      case 'champion':
+      case 'winner':
         return 'default';
       case 'second':
       case 'runner_up_1':
@@ -174,131 +280,234 @@ const PrizesPage: React.FC = () => {
     }
   };
 
+  const selectedEventData = events.find((e) => e.id === selectedEvent);
+
   return (
     <DashboardLayout title="Prizes">
       <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="w-64">
-            <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select competition" />
-              </SelectTrigger>
-              <SelectContent>
-                {competitions.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          {selectedCompetition && (
-            <div className="w-64">
-              <Select value={selectedEvent} onValueChange={setSelectedEvent}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select event" />
-                </SelectTrigger>
-                <SelectContent>
-                  {events.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {Object.keys(updatedPrizes).length > 0 && (
-            <Button onClick={handleSave} disabled={isSaving} className="ml-auto">
-              {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Prizes
-                </>
-              )}
-            </Button>
-          )}
+        <div className="w-64">
+          <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select competition" />
+            </SelectTrigger>
+            <SelectContent>
+              {competitions.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Update Prizes</CardTitle>
-            <CardDescription>
-              Award prizes to participating students
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {!selectedEvent ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Please select a competition and event to update prizes
-              </div>
-            ) : isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : participations.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No participants found for this event
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Student</TableHead>
-                    <TableHead>Admission No.</TableHead>
-                    <TableHead>Class</TableHead>
-                    <TableHead>Current Prize</TableHead>
-                    <TableHead>Update Prize</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {participations.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.student?.name}</TableCell>
-                      <TableCell className="font-mono">{p.student?.admission_no}</TableCell>
-                      <TableCell>
-                        {p.student?.class}-{p.student?.section}
-                      </TableCell>
-                      <TableCell>
-                        {p.prize ? (
-                          <Badge variant={getPrizeBadgeVariant(p.prize)}>
-                            {prizeOptions.find((o) => o.value === p.prize)?.label || p.prize}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={getPrizeValue(p)}
-                          onValueChange={(value) => handlePrizeChange(p.id, value)}
-                        >
-                          <SelectTrigger className="w-40">
-                            <SelectValue placeholder="Select prize" />
+        {selectedCompetition && (
+          <Tabs defaultValue="events">
+            <TabsList>
+              <TabsTrigger value="events" className="flex items-center gap-2">
+                <Award className="h-4 w-4" />
+                Event Prizes
+              </TabsTrigger>
+              <TabsTrigger value="competition" className="flex items-center gap-2">
+                <Trophy className="h-4 w-4" />
+                Competition Prizes
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="events" className="mt-6">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Event Prizes</CardTitle>
+                      <CardDescription>
+                        Award prizes to participants in individual events
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-64">
+                        <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select event" />
                           </SelectTrigger>
                           <SelectContent>
-                            {prizeOptions.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
+                            {events.map((e) => (
+                              <SelectItem key={e.id} value={e.id}>
+                                {e.name} ({e.event_type})
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                      </div>
+                      {Object.keys(updatedPrizes).length > 0 && (
+                        <Button onClick={handleSaveEventPrizes} disabled={isSaving}>
+                          {isSaving ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="mr-2 h-4 w-4" />
+                              Save Prizes
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {!selectedEvent ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Please select an event to update prizes
+                    </div>
+                  ) : isLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : participations.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No participants found for this event
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Student</TableHead>
+                          <TableHead>Admission No.</TableHead>
+                          <TableHead>Class</TableHead>
+                          <TableHead>Current Prize</TableHead>
+                          <TableHead>Update Prize</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {participations.map((p) => (
+                          <TableRow key={p.id}>
+                            <TableCell className="font-medium">{p.student?.name}</TableCell>
+                            <TableCell className="font-mono">{p.student?.admission_no}</TableCell>
+                            <TableCell>
+                              {p.student?.class}-{p.student?.section}
+                            </TableCell>
+                            <TableCell>
+                              {p.prize ? (
+                                <Badge variant={getPrizeBadgeVariant(p.prize)}>
+                                  {individualPrizeOptions.find((o) => o.value === p.prize)?.label || p.prize}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                value={getPrizeValue(p)}
+                                onValueChange={(value) => handlePrizeChange(p.id, value)}
+                              >
+                                <SelectTrigger className="w-40">
+                                  <SelectValue placeholder="Select prize" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {individualPrizeOptions.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="competition" className="mt-6">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Trophy className="h-5 w-5 text-primary" />
+                        Competition Overall Prizes
+                      </CardTitle>
+                      <CardDescription>
+                        Award overall competition prizes (Winner, Runner Up 1, Runner Up 2)
+                      </CardDescription>
+                    </div>
+                    {Object.keys(updatedCompetitionPrizes).length > 0 && (
+                      <Button onClick={handleSaveCompetitionPrizes} disabled={isSaving}>
+                        {isSaving ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="mr-2 h-4 w-4" />
+                            Save Competition Prizes
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Prize</TableHead>
+                        <TableHead>Current Winner</TableHead>
+                        <TableHead>Update</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {competitionPrizeOptions.map((prizeOption) => {
+                        const currentPrize = competitionPrizes.find((p) => p.prize === prizeOption.value);
+                        return (
+                          <TableRow key={prizeOption.value}>
+                            <TableCell>
+                              <Badge variant={getPrizeBadgeVariant(prizeOption.value)}>
+                                {prizeOption.label}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {currentPrize?.student ? (
+                                <span className="font-medium">
+                                  {currentPrize.student.name} ({currentPrize.student.class}-{currentPrize.student.section})
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">Not assigned</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                value={getCompetitionPrizeStudent(prizeOption.value)}
+                                onValueChange={(value) => handleCompetitionPrizeChange(prizeOption.value, value)}
+                              >
+                                <SelectTrigger className="w-64">
+                                  <SelectValue placeholder="Select student" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {allStudents.map((student) => (
+                                    <SelectItem key={student.id} value={student.id}>
+                                      {student.name} ({student.class}-{student.section})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
     </DashboardLayout>
   );
