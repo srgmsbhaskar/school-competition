@@ -55,7 +55,7 @@ const EventsPage: React.FC = () => {
   });
   const { toast } = useToast();
   const { role } = useAuth();
-  const isAdmin = role === 'admin';
+  const canManage = role === 'admin' || role === 'coordinator';
   const allClasses = Array.from({ length: 12 }, (_, i) => i + 1);
 
   const fetchData = async () => {
@@ -370,7 +370,7 @@ const EventsPage: React.FC = () => {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        {isAdmin && (
+                        {canManage && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button variant="ghost" size="sm">
