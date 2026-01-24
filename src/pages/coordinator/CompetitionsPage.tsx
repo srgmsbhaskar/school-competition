@@ -6,12 +6,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Loader2, Eye, Calendar, MapPin } from 'lucide-react';
+import { Plus, Loader2, Eye, Calendar, MapPin, Trash2, Trophy } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+
+interface CompetitionPrize {
+  id: string;
+  prize: string;
+  student: { name: string; class: number; section: string } | null;
+}
 
 interface Competition {
   id: string;
@@ -20,6 +27,7 @@ interface Competition {
   venue: string;
   is_completed: boolean;
   created_at: string;
+  prizes?: CompetitionPrize[];
 }
 
 const CompetitionsPage: React.FC = () => {
@@ -33,8 +41,9 @@ const CompetitionsPage: React.FC = () => {
     venue: '',
   });
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const navigate = useNavigate();
+  const isAdmin = role === 'admin';
 
   const fetchCompetitions = async () => {
     try {
@@ -44,7 +53,41 @@ const CompetitionsPage: React.FC = () => {
         .order('competition_date', { ascending: false });
 
       if (error) throw error;
-      setCompetitions(data || []);
+
+      // Fetch competition prizes for completed competitions
+      const completedIds = (data || []).filter(c => c.is_completed).map(c => c.id);
+      let prizesMap: Record<string, CompetitionPrize[]> = {};
+      
+      if (completedIds.length > 0) {
+        const { data: prizesData } = await supabase
+          .from('competition_prizes')
+          .select('id, competition_id, prize, student_id')
+          .in('competition_id', completedIds);
+
+        if (prizesData) {
+          const studentIds = prizesData.map(p => p.student_id);
+          const { data: studentsData } = await supabase
+            .from('students')
+            .select('id, name, class, section')
+            .in('id', studentIds);
+
+          const studentsMap = (studentsData || []).reduce((acc, s) => {
+            acc[s.id] = s;
+            return acc;
+          }, {} as Record<string, any>);
+
+          prizesData.forEach(p => {
+            if (!prizesMap[p.competition_id]) prizesMap[p.competition_id] = [];
+            prizesMap[p.competition_id].push({
+              id: p.id,
+              prize: p.prize,
+              student: studentsMap[p.student_id] || null,
+            });
+          });
+        }
+      }
+
+      setCompetitions((data || []).map(c => ({ ...c, prizes: prizesMap[c.id] || [] })));
     } catch (error) {
       console.error('Error fetching competitions:', error);
       toast({
@@ -93,6 +136,26 @@ const CompetitionsPage: React.FC = () => {
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const handleDeleteCompetition = async (competitionId: string) => {
+    try {
+      const { error } = await supabase.from('competitions').delete().eq('id', competitionId);
+      if (error) throw error;
+      toast({ title: 'Competition deleted successfully' });
+      fetchCompetitions();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
+  const formatPrize = (prize: string) => {
+    const labels: Record<string, string> = {
+      winner: 'Winner',
+      runner_up_1: 'Runner Up 1',
+      runner_up_2: 'Runner Up 2',
+    };
+    return labels[prize] || prize;
   };
 
   return (
@@ -191,6 +254,7 @@ const CompetitionsPage: React.FC = () => {
                     <TableHead>Date</TableHead>
                     <TableHead>Venue</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Prize Winners</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -215,15 +279,58 @@ const CompetitionsPage: React.FC = () => {
                           {competition.is_completed ? 'Completed' : 'Active'}
                         </Badge>
                       </TableCell>
+                      <TableCell>
+                        {competition.is_completed && competition.prizes && competition.prizes.length > 0 ? (
+                          <div className="space-y-1">
+                            {competition.prizes.sort((a, b) => {
+                              const order = { winner: 1, runner_up_1: 2, runner_up_2: 3 };
+                              return (order[a.prize as keyof typeof order] || 99) - (order[b.prize as keyof typeof order] || 99);
+                            }).map((p) => (
+                              <div key={p.id} className="flex items-center gap-2 text-sm">
+                                <Trophy className="h-3 w-3 text-amber-500" />
+                                <span className="font-medium">{formatPrize(p.prize)}:</span>
+                                <span>{p.student?.name || 'N/A'}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => navigate(`/coordinator/events?competition=${competition.id}`)}
-                        >
-                          <Eye className="mr-2 h-4 w-4" />
-                          Manage Events
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/coordinator/events?competition=${competition.id}`)}
+                          >
+                            <Eye className="mr-2 h-4 w-4" />
+                            Manage Events
+                          </Button>
+                          {isAdmin && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Competition?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will permanently delete "{competition.name}" and all its events, participations, and prizes.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDeleteCompetition(competition.id)}>
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
