@@ -43,7 +43,7 @@ const CompetitionsPage: React.FC = () => {
   const { toast } = useToast();
   const { user, role } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = role === 'admin';
+  const canManage = role === 'admin' || role === 'coordinator';
 
   const fetchCompetitions = async () => {
     try {
@@ -307,7 +307,7 @@ const CompetitionsPage: React.FC = () => {
                             <Eye className="mr-2 h-4 w-4" />
                             Manage Events
                           </Button>
-                          {isAdmin && (
+                          {canManage && (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button variant="ghost" size="sm">
