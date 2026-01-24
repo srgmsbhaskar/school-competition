@@ -6,13 +6,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Trophy, Users, Award, Download, FileSpreadsheet, FileText } from 'lucide-react';
+import { Loader2, Trophy, Users, Award, Download, FileSpreadsheet, FileText, Calendar, MapPin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { exportToPDF, exportToExcel } from '@/lib/exportUtils';
+import { format } from 'date-fns';
 
 interface Competition {
   id: string;
   name: string;
+  competition_date: string;
+  venue: string;
 }
 
 interface ParticipationReport {
@@ -73,7 +76,7 @@ const ReportsPage: React.FC = () => {
     const fetchCompetitions = async () => {
       const { data } = await supabase
         .from('competitions')
-        .select('id, name')
+        .select('id, name, competition_date, venue')
         .order('competition_date', { ascending: false });
       setCompetitions(data || []);
       setIsLoading(false);
@@ -196,9 +199,16 @@ const ReportsPage: React.FC = () => {
     return labels[prize] || prize;
   };
 
+  // Get selected competition details
+  const selectedCompetitionData = competitions.find((c) => c.id === selectedCompetition);
+
   // Export handlers
   const handleExportParticipationPDF = () => {
-    const competitionName = competitions.find((c) => c.id === selectedCompetition)?.name || 'Competition';
+    const comp = selectedCompetitionData;
+    const competitionName = comp?.name || 'Competition';
+    const competitionDate = comp?.competition_date ? format(new Date(comp.competition_date), 'dd MMM yyyy') : '';
+    const venue = comp?.venue || '';
+    
     const exportData = participations.map((p) => ({
       student_name: p.student_name,
       admission_no: p.admission_no,
@@ -219,14 +229,21 @@ const ReportsPage: React.FC = () => {
         { header: 'Type', key: 'event_type' },
         { header: 'Prize', key: 'prize' },
       ],
-      `Participation Report - ${competitionName}`,
+      `Participation Report\n${competitionName}\nDate: ${competitionDate} | Venue: ${venue}`,
       `participation-report-${competitionName.toLowerCase().replace(/\s+/g, '-')}`
     );
   };
 
   const handleExportParticipationExcel = () => {
-    const competitionName = competitions.find((c) => c.id === selectedCompetition)?.name || 'Competition';
+    const comp = selectedCompetitionData;
+    const competitionName = comp?.name || 'Competition';
+    const competitionDate = comp?.competition_date ? format(new Date(comp.competition_date), 'dd MMM yyyy') : '';
+    const venue = comp?.venue || '';
+    
     const exportData = participations.map((p) => ({
+      competition_name: competitionName,
+      competition_date: competitionDate,
+      venue: venue,
       student_name: p.student_name,
       admission_no: p.admission_no,
       class: p.class,
@@ -238,6 +255,9 @@ const ReportsPage: React.FC = () => {
     exportToExcel(
       exportData,
       [
+        { header: 'Competition', key: 'competition_name' },
+        { header: 'Date', key: 'competition_date' },
+        { header: 'Venue', key: 'venue' },
         { header: 'Student Name', key: 'student_name' },
         { header: 'Admission No.', key: 'admission_no' },
         { header: 'Class', key: 'class' },
@@ -424,6 +444,23 @@ const ReportsPage: React.FC = () => {
                     No participants found
                   </div>
                 ) : (
+                  <div className="space-y-4">
+                    {/* Competition Details Header */}
+                    {selectedCompetitionData && (
+                      <div className="bg-muted/50 rounded-lg p-4 border">
+                        <h3 className="font-semibold text-lg">{selectedCompetitionData.name}</h3>
+                        <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            <span>{format(new Date(selectedCompetitionData.competition_date), 'dd MMMM yyyy')}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-4 w-4" />
+                            <span>{selectedCompetitionData.venue}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -460,6 +497,7 @@ const ReportsPage: React.FC = () => {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>

@@ -17,11 +17,28 @@ export const exportToPDF = (
 ) => {
   const doc = new jsPDF();
   
-  // Add title
+  // Handle multi-line titles
+  const titleLines = title.split('\n');
+  let yPosition = 15;
+  
+  // Main title
   doc.setFontSize(16);
-  doc.text(title, 14, 15);
+  doc.text(titleLines[0], 14, yPosition);
+  yPosition += 7;
+  
+  // Additional title lines (competition details)
+  if (titleLines.length > 1) {
+    doc.setFontSize(12);
+    for (let i = 1; i < titleLines.length; i++) {
+      doc.text(titleLines[i], 14, yPosition);
+      yPosition += 6;
+    }
+  }
+  
+  // Generated date
   doc.setFontSize(10);
-  doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 22);
+  doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, yPosition);
+  yPosition += 6;
 
   // Prepare table data
   const headers = columns.map((col) => col.header);
@@ -35,7 +52,7 @@ export const exportToPDF = (
   autoTable(doc, {
     head: [headers],
     body: rows,
-    startY: 28,
+    startY: yPosition + 2,
     styles: { fontSize: 9 },
     headStyles: { fillColor: [59, 130, 246] },
   });
