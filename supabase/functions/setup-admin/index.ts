@@ -14,6 +14,35 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     
+    // Get credentials from request body - no hardcoded values
+    const body = await req.json().catch(() => ({}))
+    const { email, password, full_name, setup_key } = body
+
+    // Require a setup key to prevent unauthorized admin creation
+    const expectedSetupKey = Deno.env.get('ADMIN_SETUP_KEY')
+    if (expectedSetupKey && setup_key !== expectedSetupKey) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid setup key' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Validate required fields
+    if (!email || !password) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Email and password are required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Validate password strength
+    if (password.length < 8) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Password must be at least 8 characters' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
@@ -21,24 +50,24 @@ Deno.serve(async (req) => {
       }
     })
 
-    const adminEmail = 'admin@svv.com'
-    const adminPassword = 'admin123'
+    // Check if any admin already exists
+    const { data: existingRoles } = await supabaseAdmin
+      .from('user_roles')
+      .select('id')
+      .eq('role', 'admin')
+      .limit(1)
 
-    // Check if admin already exists
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
-    const adminExists = existingUsers?.users?.some(u => u.email === adminEmail)
-
-    if (adminExists) {
+    if (existingRoles && existingRoles.length > 0) {
       return new Response(
-        JSON.stringify({ success: true, message: 'Admin user already exists' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'An admin user already exists. Use the admin panel to create additional admins.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     // Create admin user
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: adminEmail,
-      password: adminPassword,
+      email: email,
+      password: password,
       email_confirm: true
     })
 
@@ -53,8 +82,8 @@ Deno.serve(async (req) => {
       .from('profiles')
       .insert({
         id: userId,
-        email: adminEmail,
-        full_name: 'System Administrator'
+        email: email,
+        full_name: full_name || 'System Administrator'
       })
 
     if (profileError) {
@@ -76,8 +105,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Admin user created successfully',
-        email: adminEmail
+        message: 'Admin user created successfully'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
