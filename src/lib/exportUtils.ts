@@ -1,6 +1,5 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
 
 export interface ExportColumn {
   header: string;
@@ -60,23 +59,77 @@ export const exportToPDF = (
   doc.save(`${filename}.pdf`);
 };
 
+/**
+ * Escape a CSV field value to prevent CSV injection and handle special characters
+ */
+const escapeCSVField = (value: string | number | null | undefined): string => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  
+  const stringValue = String(value);
+  
+  // Check if the value needs quoting (contains comma, newline, quote, or starts with dangerous chars)
+  const needsQuoting = /[,"\n\r]/.test(stringValue) || 
+    /^[=+\-@\t\r]/.test(stringValue);
+  
+  if (needsQuoting) {
+    // Escape quotes by doubling them and wrap in quotes
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
+  
+  return stringValue;
+};
+
+/**
+ * Export data to CSV format (safer alternative to xlsx library)
+ */
+export const exportToCSV = (
+  data: ExportData[],
+  columns: ExportColumn[],
+  filename: string
+) => {
+  // Create header row
+  const headers = columns.map((col) => escapeCSVField(col.header));
+  const headerRow = headers.join(',');
+  
+  // Create data rows
+  const rows = data.map((item) => {
+    return columns
+      .map((col) => escapeCSVField(item[col.key]))
+      .join(',');
+  });
+  
+  // Combine all rows
+  const csvContent = [headerRow, ...rows].join('\n');
+  
+  // Create blob and download
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${filename}.csv`;
+  link.style.display = 'none';
+  
+  document.body.appendChild(link);
+  link.click();
+  
+  // Cleanup
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+/**
+ * Legacy export function for backwards compatibility
+ * Now exports to CSV instead of XLSX for security
+ */
 export const exportToExcel = (
   data: ExportData[],
   columns: ExportColumn[],
-  sheetName: string,
+  _sheetName: string,
   filename: string
 ) => {
-  // Transform data to use column headers
-  const exportData = data.map((item) => {
-    const row: Record<string, string | number | null | undefined> = {};
-    columns.forEach((col) => {
-      row[col.header] = item[col.key];
-    });
-    return row;
-  });
-
-  const worksheet = XLSX.utils.json_to_sheet(exportData);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-  XLSX.writeFile(workbook, `${filename}.xlsx`);
+  // Export to CSV instead of XLSX to avoid security vulnerabilities
+  exportToCSV(data, columns, filename);
 };
