@@ -6,23 +6,22 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-
-interface StudentRow {
-  s_no: number;
-  admission_no: string;
-  name: string;
-  dob: string;
-  class: number;
-  section: string;
-}
+import { 
+  parseAndValidateCSV, 
+  validateFile, 
+  MAX_FILE_SIZE,
+  type ValidatedStudentRow,
+  type ValidationError 
+} from '@/lib/csvValidation';
 
 const UploadStudents: React.FC = () => {
   const [academicYear, setAcademicYear] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
-  const [csvData, setCsvData] = useState<StudentRow[]>([]);
+  const [csvData, setCsvData] = useState<ValidatedStudentRow[]>([]);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const { toast } = useToast();
@@ -31,37 +30,60 @@ const UploadStudents: React.FC = () => {
   const years = Array.from({ length: 5 }, (_, i) => `${currentYear - 2 + i}-${currentYear - 1 + i}`);
   const classes = Array.from({ length: 12 }, (_, i) => i + 1);
 
-  const parseCSV = (text: string): StudentRow[] => {
-    const lines = text.trim().split('\n');
-    const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
-    
-    const rows: StudentRow[] = [];
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim());
-      if (values.length >= 5) {
-        rows.push({
-          s_no: parseInt(values[headers.indexOf('s no')] || values[headers.indexOf('sno')] || values[0]) || i,
-          admission_no: values[headers.indexOf('admission no')] || values[headers.indexOf('admission_no')] || values[1],
-          name: values[headers.indexOf('name')] || values[2],
-          dob: values[headers.indexOf('dob')] || values[headers.indexOf('date of birth')] || values[3],
-          class: parseInt(selectedClass),
-          section: values[headers.indexOf('sec')] || values[headers.indexOf('section')] || values[4],
-        });
-      }
-    }
-    return rows;
-  };
-
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validate file before processing
+    const fileValidation = validateFile(file);
+    if (!fileValidation.valid) {
+      toast({
+        title: 'Invalid File',
+        description: fileValidation.error,
+        variant: 'destructive',
+      });
+      e.target.value = ''; // Reset input
+      return;
+    }
+
+    if (!selectedClass) {
+      toast({
+        title: 'Select Class First',
+        description: 'Please select a class before uploading the CSV file',
+        variant: 'destructive',
+      });
+      e.target.value = '';
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
-      const parsed = parseCSV(text);
-      setCsvData(parsed);
+      const result = parseAndValidateCSV(text, parseInt(selectedClass));
+      
+      setCsvData(result.validRows);
+      setValidationErrors(result.errors);
       setUploadStatus('idle');
+
+      if (result.errors.length > 0) {
+        toast({
+          title: 'Validation Warnings',
+          description: `${result.errors.length} row(s) have validation issues. ${result.validRows.length} valid rows ready for upload.`,
+          variant: 'destructive',
+        });
+      } else if (result.validRows.length > 0) {
+        toast({
+          title: 'File Parsed Successfully',
+          description: `${result.validRows.length} students ready for upload`,
+        });
+      }
+    };
+    reader.onerror = () => {
+      toast({
+        title: 'File Read Error',
+        description: 'Failed to read the CSV file',
+        variant: 'destructive',
+      });
     };
     reader.readAsText(file);
   };
@@ -70,7 +92,7 @@ const UploadStudents: React.FC = () => {
     if (!academicYear || !selectedClass || csvData.length === 0) {
       toast({
         title: 'Missing Information',
-        description: 'Please select academic year, class, and upload a CSV file',
+        description: 'Please select academic year, class, and upload a valid CSV file',
         variant: 'destructive',
       });
       return;
@@ -100,12 +122,14 @@ const UploadStudents: React.FC = () => {
         description: `${csvData.length} students uploaded successfully`,
       });
       setCsvData([]);
-    } catch (error: any) {
+      setValidationErrors([]);
+    } catch (error: unknown) {
       console.error('Error uploading students:', error);
       setUploadStatus('error');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload students';
       toast({
         title: 'Error',
-        description: error.message || 'Failed to upload students',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -120,7 +144,8 @@ const UploadStudents: React.FC = () => {
           <CardHeader>
             <CardTitle>Upload Student Data</CardTitle>
             <CardDescription>
-              Upload a CSV file with student information for a specific class and academic year
+              Upload a CSV file with student information for a specific class and academic year.
+              Maximum file size: {MAX_FILE_SIZE / (1024 * 1024)}MB
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -162,7 +187,7 @@ const UploadStudents: React.FC = () => {
               <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
                 <FileSpreadsheet className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-sm text-muted-foreground mb-4">
-                  Upload a CSV file with columns: S No, Admission No, Name, DOB, Section
+                  Upload a CSV file with columns: S No, Admission No, Name, DOB (YYYY-MM-DD), Section
                 </p>
                 <Input
                   type="file"
@@ -173,10 +198,33 @@ const UploadStudents: React.FC = () => {
               </div>
             </div>
 
+            {validationErrors.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-amber-600">
+                  <AlertTriangle className="h-5 w-5" />
+                  <span className="font-semibold">Validation Errors ({validationErrors.length})</span>
+                </div>
+                <div className="max-h-40 overflow-auto rounded-md border border-amber-200 bg-amber-50 p-3">
+                  <ul className="text-sm text-amber-800 space-y-1">
+                    {validationErrors.slice(0, 10).map((err, idx) => (
+                      <li key={idx}>
+                        Row {err.row}: {err.field} - {err.message}
+                      </li>
+                    ))}
+                    {validationErrors.length > 10 && (
+                      <li className="text-amber-600 font-medium">
+                        ... and {validationErrors.length - 10} more errors
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+            )}
+
             {csvData.length > 0 && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold">Preview ({csvData.length} students)</h3>
+                  <h3 className="font-semibold">Preview ({csvData.length} valid students)</h3>
                   <Button onClick={handleUpload} disabled={isUploading}>
                     {isUploading ? (
                       <>
@@ -248,7 +296,7 @@ const UploadStudents: React.FC = () => {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
-              Your CSV file should have the following columns:
+              Your CSV file should have the following columns. Date format must be YYYY-MM-DD.
             </p>
             <div className="bg-muted p-4 rounded-md font-mono text-sm">
               S No,Admission No,Name,DOB,Section<br />
@@ -256,6 +304,15 @@ const UploadStudents: React.FC = () => {
               2,ADM002,Jane Smith,2015-08-22,A<br />
               3,ADM003,Mike Johnson,2015-03-10,B
             </div>
+            <p className="text-sm text-muted-foreground mt-4">
+              <strong>Validation Rules:</strong>
+            </p>
+            <ul className="text-sm text-muted-foreground list-disc list-inside mt-2 space-y-1">
+              <li>Names: Only letters, spaces, periods, hyphens, and apostrophes allowed</li>
+              <li>Admission No: Only letters, numbers, hyphens, and underscores allowed</li>
+              <li>DOB: Must be in YYYY-MM-DD format (e.g., 2015-05-15)</li>
+              <li>Section: Only letters and numbers allowed</li>
+            </ul>
           </CardContent>
         </Card>
       </div>
