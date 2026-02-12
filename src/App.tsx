@@ -24,6 +24,7 @@ import EventsPage from "./pages/coordinator/EventsPage";
 import AssignTeachers from "./pages/coordinator/AssignTeachers";
 import PrizesPage from "./pages/coordinator/PrizesPage";
 import ReportsPage from "./pages/coordinator/ReportsPage";
+import CoordinatorSelectStudents from "./pages/coordinator/SelectStudents";
 
 // Teacher Pages
 import TeacherDashboard from "./pages/teacher/TeacherDashboard";
@@ -118,6 +119,11 @@ const AppRoutes = () => {
       <Route path="/coordinator/reports" element={
         <ProtectedRoute allowedRoles={['coordinator', 'admin']}>
           <ReportsPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/coordinator/select-students" element={
+        <ProtectedRoute allowedRoles={['coordinator', 'admin']}>
+          <CoordinatorSelectStudents />
         </ProtectedRoute>
       } />
 
