@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Loader2, Save, Users, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -64,19 +63,21 @@ const CoordinatorSelectStudents: React.FC = () => {
 
   useEffect(() => {
     if (selectedCompetition) {
-      fetchEventsAndStudents();
+      fetchEvents();
     }
   }, [selectedCompetition]);
 
   useEffect(() => {
     if (selectedEvent) {
+      fetchStudentsForEvent();
       fetchExistingParticipations();
     }
   }, [selectedEvent]);
 
-  const fetchEventsAndStudents = async () => {
+  const fetchEvents = async () => {
     setIsLoading(true);
     setSelectedEvent('');
+    setStudents([]);
 
     const { data: eventsData } = await supabase
       .from('events')
@@ -95,14 +96,29 @@ const CoordinatorSelectStudents: React.FC = () => {
     }));
 
     setEvents(eventsWithClasses);
+    setIsLoading(false);
+  };
 
-    const { data: studentsData } = await supabase
+  const fetchStudentsForEvent = async () => {
+    setIsLoading(true);
+    const event = events.find((e) => e.id === selectedEvent);
+    if (!event) {
+      setIsLoading(false);
+      return;
+    }
+
+    let query = supabase
       .from('students')
       .select('*')
       .order('class')
       .order('section')
       .order('s_no');
 
+    if (event.classes.length > 0) {
+      query = query.in('class', event.classes);
+    }
+
+    const { data: studentsData } = await query;
     setStudents(studentsData || []);
     setIsLoading(false);
   };
@@ -170,25 +186,16 @@ const CoordinatorSelectStudents: React.FC = () => {
     }
   };
 
-  const getEligibleStudents = () => {
+  const getFilteredStudents = () => {
     let filtered = students;
-
-    if (selectedEvent) {
-      const event = events.find((e) => e.id === selectedEvent);
-      if (event && event.classes.length > 0) {
-        filtered = filtered.filter((s) => event.classes.includes(s.class));
-      }
-    }
-
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter((s) => s.name.toLowerCase().includes(q));
     }
-
     return filtered;
   };
 
-  const eligibleStudents = getEligibleStudents();
+  const filteredStudents = getFilteredStudents();
 
   return (
     <DashboardLayout title="Select Students">
@@ -271,7 +278,7 @@ const CoordinatorSelectStudents: React.FC = () => {
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : eligibleStudents.length === 0 ? (
+            ) : filteredStudents.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 {searchQuery ? 'No students match your search' : 'No eligible students found for this event'}
               </div>
@@ -289,7 +296,7 @@ const CoordinatorSelectStudents: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {eligibleStudents.map((student) => (
+                    {filteredStudents.map((student) => (
                       <TableRow key={student.id}>
                         <TableCell>
                           <Checkbox

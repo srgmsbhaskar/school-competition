@@ -7,18 +7,13 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Loader2, Eye, Calendar, MapPin, Trash2, Trophy } from 'lucide-react';
+import { Plus, Loader2, Eye, Calendar, MapPin, Trash2, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-
-interface CompetitionPrize {
-  id: string;
-  prize: string;
-  student: { name: string; class: number; section: string } | null;
-}
 
 interface Competition {
   id: string;
@@ -27,14 +22,22 @@ interface Competition {
   venue: string;
   is_completed: boolean;
   created_at: string;
-  prizes?: CompetitionPrize[];
+  prize?: string; // competition-level grade: champion | runner_up_1 | runner_up_2
 }
+
+const competitionGradeOptions = [
+  { value: 'champion', label: 'Overall Champion' },
+  { value: 'runner_up_1', label: '1st Runner Up' },
+  { value: 'runner_up_2', label: '2nd Runner Up' },
+];
 
 const CompetitionsPage: React.FC = () => {
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editedGrades, setEditedGrades] = useState<Record<string, string>>({});
   const [newCompetition, setNewCompetition] = useState({
     name: '',
     competition_date: '',
@@ -54,47 +57,32 @@ const CompetitionsPage: React.FC = () => {
 
       if (error) throw error;
 
-      // Fetch competition prizes for completed competitions
-      const completedIds = (data || []).filter(c => c.is_completed).map(c => c.id);
-      let prizesMap: Record<string, CompetitionPrize[]> = {};
-      
-      if (completedIds.length > 0) {
+      // Fetch competition-level prizes to determine grade
+      const competitionIds = (data || []).map(c => c.id);
+      let prizesMap: Record<string, string> = {};
+
+      if (competitionIds.length > 0) {
         const { data: prizesData } = await supabase
           .from('competition_prizes')
-          .select('id, competition_id, prize, student_id')
-          .in('competition_id', completedIds);
+          .select('competition_id, prize')
+          .in('competition_id', competitionIds);
 
         if (prizesData) {
-          const studentIds = prizesData.map(p => p.student_id);
-          const { data: studentsData } = await supabase
-            .from('students')
-            .select('id, name, class, section')
-            .in('id', studentIds);
-
-          const studentsMap = (studentsData || []).reduce((acc, s) => {
-            acc[s.id] = s;
-            return acc;
-          }, {} as Record<string, any>);
-
+          // A competition's grade is the highest prize assigned to it
+          const order: Record<string, number> = { champion: 1, runner_up_1: 2, runner_up_2: 3 };
           prizesData.forEach(p => {
-            if (!prizesMap[p.competition_id]) prizesMap[p.competition_id] = [];
-            prizesMap[p.competition_id].push({
-              id: p.id,
-              prize: p.prize,
-              student: studentsMap[p.student_id] || null,
-            });
+            const existing = prizesMap[p.competition_id];
+            if (!existing || (order[p.prize] || 99) < (order[existing] || 99)) {
+              prizesMap[p.competition_id] = p.prize;
+            }
           });
         }
       }
 
-      setCompetitions((data || []).map(c => ({ ...c, prizes: prizesMap[c.id] || [] })));
+      setCompetitions((data || []).map(c => ({ ...c, prize: prizesMap[c.id] || '' })));
     } catch (error) {
       console.error('Error fetching competitions:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load competitions',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to load competitions', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -118,21 +106,12 @@ const CompetitionsPage: React.FC = () => {
 
       if (error) throw error;
 
-      toast({
-        title: 'Success',
-        description: 'Competition created successfully',
-      });
-
+      toast({ title: 'Success', description: 'Competition created successfully' });
       setIsDialogOpen(false);
       setNewCompetition({ name: '', competition_date: '', venue: '' });
       fetchCompetitions();
     } catch (error: any) {
-      console.error('Error creating competition:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to create competition',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: error.message || 'Failed to create competition', variant: 'destructive' });
     } finally {
       setIsCreating(false);
     }
@@ -149,13 +128,66 @@ const CompetitionsPage: React.FC = () => {
     }
   };
 
-  const formatPrize = (prize: string) => {
-    const labels: Record<string, string> = {
-      winner: 'Winner',
-      runner_up_1: 'Runner Up 1',
-      runner_up_2: 'Runner Up 2',
-    };
-    return labels[prize] || prize;
+  const handleGradeChange = (competitionId: string, grade: string) => {
+    setEditedGrades(prev => ({ ...prev, [competitionId]: grade }));
+  };
+
+  const handleSave = async () => {
+    if (Object.keys(editedGrades).length === 0) return;
+
+    setIsSaving(true);
+    try {
+      for (const [competitionId, grade] of Object.entries(editedGrades)) {
+        // Delete existing competition-level prizes for this competition
+        await supabase
+          .from('competition_prizes')
+          .delete()
+          .eq('competition_id', competitionId)
+          .in('prize', ['champion', 'runner_up_1', 'runner_up_2']);
+
+        if (grade) {
+          // We need a placeholder student_id since the column is NOT NULL.
+          // For competition-level grading (not student-level), we store the grade.
+          // First check if there's any student to use as placeholder
+          const { data: anyStudent } = await supabase
+            .from('students')
+            .select('id')
+            .limit(1)
+            .single();
+
+          if (anyStudent) {
+            await supabase.from('competition_prizes').insert({
+              competition_id: competitionId,
+              student_id: anyStudent.id,
+              prize: grade,
+              awarded_by: user?.id,
+            });
+          }
+        }
+
+        // Mark as completed if graded
+        await supabase
+          .from('competitions')
+          .update({ is_completed: !!grade })
+          .eq('id', competitionId);
+      }
+
+      toast({ title: 'Success', description: 'Competition grades saved successfully' });
+      setEditedGrades({});
+      fetchCompetitions();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to save grades', variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const getGradeLabel = (prize: string) => {
+    return competitionGradeOptions.find(o => o.value === prize)?.label || '';
+  };
+
+  const getGradeValue = (competition: Competition) => {
+    return editedGrades[competition.id] ?? competition.prize ?? '';
   };
 
   return (
@@ -165,71 +197,71 @@ const CompetitionsPage: React.FC = () => {
           <p className="text-muted-foreground">
             Manage competitions and their events
           </p>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Create Competition
+          <div className="flex items-center gap-2">
+            {Object.keys(editedGrades).length > 0 && (
+              <Button onClick={handleSave} disabled={isSaving}>
+                {isSaving ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
+                ) : (
+                  <><Save className="mr-2 h-4 w-4" />Save Changes</>
+                )}
               </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Competition</DialogTitle>
-                <DialogDescription>
-                  Add a new external competition
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleCreate}>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Competition Name</Label>
-                    <Input
-                      id="name"
-                      value={newCompetition.name}
-                      onChange={(e) => setNewCompetition({ ...newCompetition, name: e.target.value })}
-                      placeholder="Enter competition name"
-                      required
-                    />
+            )}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Competition
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create New Competition</DialogTitle>
+                  <DialogDescription>Add a new external competition</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleCreate}>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Competition Name</Label>
+                      <Input
+                        id="name"
+                        value={newCompetition.name}
+                        onChange={(e) => setNewCompetition({ ...newCompetition, name: e.target.value })}
+                        placeholder="Enter competition name"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="date">Competition Date</Label>
+                      <Input
+                        id="date"
+                        type="date"
+                        value={newCompetition.competition_date}
+                        onChange={(e) => setNewCompetition({ ...newCompetition, competition_date: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="venue">Venue</Label>
+                      <Input
+                        id="venue"
+                        value={newCompetition.venue}
+                        onChange={(e) => setNewCompetition({ ...newCompetition, venue: e.target.value })}
+                        placeholder="Enter venue"
+                        required
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="date">Competition Date</Label>
-                    <Input
-                      id="date"
-                      type="date"
-                      value={newCompetition.competition_date}
-                      onChange={(e) => setNewCompetition({ ...newCompetition, competition_date: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="venue">Venue</Label>
-                    <Input
-                      id="venue"
-                      value={newCompetition.venue}
-                      onChange={(e) => setNewCompetition({ ...newCompetition, venue: e.target.value })}
-                      placeholder="Enter venue"
-                      required
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isCreating}>
-                    {isCreating ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      'Create Competition'
-                    )}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                    <Button type="submit" disabled={isCreating}>
+                      {isCreating ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</>) : 'Create Competition'}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <Card>
@@ -254,7 +286,7 @@ const CompetitionsPage: React.FC = () => {
                     <TableHead>Date</TableHead>
                     <TableHead>Venue</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Prize Winners</TableHead>
+                    <TableHead>Prize</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -280,21 +312,28 @@ const CompetitionsPage: React.FC = () => {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {competition.is_completed && competition.prizes && competition.prizes.length > 0 ? (
-                          <div className="space-y-1">
-                            {competition.prizes.sort((a, b) => {
-                              const order = { winner: 1, runner_up_1: 2, runner_up_2: 3 };
-                              return (order[a.prize as keyof typeof order] || 99) - (order[b.prize as keyof typeof order] || 99);
-                            }).map((p) => (
-                              <div key={p.id} className="flex items-center gap-2 text-sm">
-                                <Trophy className="h-3 w-3 text-amber-500" />
-                                <span className="font-medium">{formatPrize(p.prize)}:</span>
-                                <span>{p.student?.name || 'N/A'}</span>
-                              </div>
-                            ))}
-                          </div>
+                        {canManage ? (
+                          <Select
+                            value={getGradeValue(competition)}
+                            onValueChange={(value) => handleGradeChange(competition.id, value)}
+                          >
+                            <SelectTrigger className="w-44">
+                              <SelectValue placeholder="Select grade" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {competitionGradeOptions.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         ) : (
-                          <span className="text-muted-foreground text-sm">—</span>
+                          competition.prize ? (
+                            <Badge variant="outline">{getGradeLabel(competition.prize)}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">—</span>
+                          )
                         )}
                       </TableCell>
                       <TableCell className="text-right">
