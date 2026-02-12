@@ -433,7 +433,7 @@ const PrizesPage: React.FC = () => {
                         Competition Overall Prizes
                       </CardTitle>
                       <CardDescription>
-                        Award overall competition prizes (Winner, Runner Up 1, Runner Up 2)
+                        Award overall competition prizes (Overall Champion, 1st Runner Up, 2nd Runner Up)
                       </CardDescription>
                     </div>
                     {Object.keys(updatedCompetitionPrizes).length > 0 && (
