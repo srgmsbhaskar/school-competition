@@ -51,6 +51,7 @@ export const AppSidebar: React.FC = () => {
     { title: 'Competitions', icon: Trophy, path: '/coordinator/competitions' },
     { title: 'Events', icon: Calendar, path: '/coordinator/events' },
     { title: 'Assign Teachers', icon: ClipboardList, path: '/coordinator/assign-teachers' },
+    { title: 'Select Students', icon: Users, path: '/coordinator/select-students' },
     { title: 'Prizes', icon: Award, path: '/coordinator/prizes' },
     { title: 'Reports', icon: FileText, path: '/coordinator/reports' },
   ];

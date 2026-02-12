@@ -33,68 +33,37 @@ interface Student {
   section: string;
 }
 
-interface Participation {
-  student_id: string;
-  event_id: string;
-}
-
-const SelectStudents: React.FC = () => {
+const CoordinatorSelectStudents: React.FC = () => {
   const [searchParams] = useSearchParams();
   const initialCompetitionId = searchParams.get('competition');
-  
+
   const { user } = useAuth();
   const { toast } = useToast();
-  
+
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedCompetition, setSelectedCompetition] = useState<string>(initialCompetitionId || '');
   const [selectedEvent, setSelectedEvent] = useState<string>('');
-  const [assignedClasses, setAssignedClasses] = useState<number[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
-  const [existingParticipations, setExistingParticipations] = useState<Participation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    const fetchAssignedCompetitions = async () => {
-      if (!user) return;
-
-      const { data: assignments } = await supabase
-        .from('teacher_assignments')
-        .select('competition_id, class')
-        .eq('teacher_id', user.id);
-
-      if (!assignments || assignments.length === 0) {
-        setIsLoading(false);
-        return;
-      }
-
-      const competitionIds = [...new Set(assignments.map((a) => a.competition_id))];
-
-      const { data: competitionsData } = await supabase
+    const fetchCompetitions = async () => {
+      const { data } = await supabase
         .from('competitions')
         .select('id, name')
-        .in('id', competitionIds);
-
-      setCompetitions(competitionsData || []);
-
-      if (selectedCompetition) {
-        const classes = assignments
-          .filter((a) => a.competition_id === selectedCompetition)
-          .map((a) => a.class);
-        setAssignedClasses(classes);
-      }
-
+        .order('competition_date', { ascending: false });
+      setCompetitions(data || []);
       setIsLoading(false);
     };
-
-    fetchAssignedCompetitions();
-  }, [user, selectedCompetition]);
+    fetchCompetitions();
+  }, []);
 
   useEffect(() => {
-    if (selectedCompetition && user) {
+    if (selectedCompetition) {
       fetchEventsAndStudents();
     }
   }, [selectedCompetition]);
@@ -107,18 +76,8 @@ const SelectStudents: React.FC = () => {
 
   const fetchEventsAndStudents = async () => {
     setIsLoading(true);
+    setSelectedEvent('');
 
-    // Get teacher assignments for this competition
-    const { data: assignments } = await supabase
-      .from('teacher_assignments')
-      .select('class')
-      .eq('teacher_id', user?.id)
-      .eq('competition_id', selectedCompetition);
-
-    const classes = assignments?.map((a) => a.class) || [];
-    setAssignedClasses(classes);
-
-    // Get events for this competition
     const { data: eventsData } = await supabase
       .from('events')
       .select('id, name')
@@ -135,26 +94,16 @@ const SelectStudents: React.FC = () => {
         .map((ec) => ec.class),
     }));
 
-    // Filter events that include at least one of teacher's assigned classes
-    const filteredEvents = eventsWithClasses.filter((event) =>
-      event.classes.length === 0 || event.classes.some((c) => classes.includes(c))
-    );
+    setEvents(eventsWithClasses);
 
-    setEvents(filteredEvents);
+    const { data: studentsData } = await supabase
+      .from('students')
+      .select('*')
+      .order('class')
+      .order('section')
+      .order('s_no');
 
-    // Get students from assigned classes
-    if (classes.length > 0) {
-      const { data: studentsData } = await supabase
-        .from('students')
-        .select('*')
-        .in('class', classes)
-        .order('class')
-        .order('section')
-        .order('s_no');
-
-      setStudents(studentsData || []);
-    }
-
+    setStudents(studentsData || []);
     setIsLoading(false);
   };
 
@@ -164,9 +113,6 @@ const SelectStudents: React.FC = () => {
       .select('student_id, event_id')
       .eq('event_id', selectedEvent);
 
-    setExistingParticipations(data || []);
-    
-    // Set selected students based on existing participations
     const participatingStudentIds = new Set((data || []).map((p) => p.student_id));
     setSelectedStudents(participatingStudentIds);
   };
@@ -188,50 +134,37 @@ const SelectStudents: React.FC = () => {
 
     setIsSaving(true);
     try {
-      // Get current participations for this event
       const { data: currentParticipations } = await supabase
         .from('student_participations')
         .select('id, student_id')
         .eq('event_id', selectedEvent);
 
       const currentStudentIds = new Set((currentParticipations || []).map((p) => p.student_id));
-      
-      // Find students to add
+
       const toAdd = [...selectedStudents].filter((id) => !currentStudentIds.has(id));
-      
-      // Find students to remove
       const toRemove = (currentParticipations || [])
         .filter((p) => !selectedStudents.has(p.student_id))
         .map((p) => p.id);
 
-      // Add new participations
       if (toAdd.length > 0) {
-        const newParticipations = toAdd.map((studentId) => ({
-          student_id: studentId,
-          event_id: selectedEvent,
-          competition_id: selectedCompetition,
-          selected_by: user?.id,
-        }));
-
-        await supabase.from('student_participations').insert(newParticipations);
+        await supabase.from('student_participations').insert(
+          toAdd.map((studentId) => ({
+            student_id: studentId,
+            event_id: selectedEvent,
+            competition_id: selectedCompetition,
+            selected_by: user?.id,
+          }))
+        );
       }
 
-      // Remove participations
       if (toRemove.length > 0) {
         await supabase.from('student_participations').delete().in('id', toRemove);
       }
 
-      toast({
-        title: 'Success',
-        description: 'Student selections saved successfully',
-      });
+      toast({ title: 'Success', description: 'Student selections saved successfully' });
     } catch (error: any) {
       console.error('Error saving selections:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to save selections',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: error.message || 'Failed to save selections', variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -239,11 +172,12 @@ const SelectStudents: React.FC = () => {
 
   const getEligibleStudents = () => {
     let filtered = students;
-    if (!selectedEvent) return filtered;
 
-    const event = events.find((e) => e.id === selectedEvent);
-    if (event && event.classes.length > 0) {
-      filtered = filtered.filter((s) => event.classes.includes(s.class));
+    if (selectedEvent) {
+      const event = events.find((e) => e.id === selectedEvent);
+      if (event && event.classes.length > 0) {
+        filtered = filtered.filter((s) => event.classes.includes(s.class));
+      }
     }
 
     if (searchQuery.trim()) {
@@ -267,9 +201,7 @@ const SelectStudents: React.FC = () => {
               </SelectTrigger>
               <SelectContent>
                 {competitions.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -283,9 +215,7 @@ const SelectStudents: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {events.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.name}
-                    </SelectItem>
+                    <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -295,30 +225,13 @@ const SelectStudents: React.FC = () => {
           {selectedEvent && (
             <Button onClick={handleSave} disabled={isSaving} className="ml-auto">
               {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
               ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Selections ({selectedStudents.size})
-                </>
+                <><Save className="mr-2 h-4 w-4" />Save Selections ({selectedStudents.size})</>
               )}
             </Button>
           )}
         </div>
-
-        {assignedClasses.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Your assigned classes:</span>
-            {assignedClasses.map((c) => (
-              <Badge key={c} variant="outline">
-                Class {c}
-              </Badge>
-            ))}
-          </div>
-        )}
 
         <Card>
           <CardHeader>
@@ -329,7 +242,7 @@ const SelectStudents: React.FC = () => {
                   Select Students
                 </CardTitle>
                 <CardDescription>
-                  Choose students from your assigned classes for this event
+                  Choose students for this event
                 </CardDescription>
               </div>
               {selectedEvent && (
@@ -402,4 +315,4 @@ const SelectStudents: React.FC = () => {
   );
 };
 
-export default SelectStudents;
+export default CoordinatorSelectStudents;

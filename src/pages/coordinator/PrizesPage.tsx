@@ -64,9 +64,9 @@ const individualPrizeOptions = [
 
 // Competition-level prizes
 const competitionPrizeOptions = [
-  { value: 'winner', label: 'Winner' },
-  { value: 'runner_up_1', label: 'Runner Up 1' },
-  { value: 'runner_up_2', label: 'Runner Up 2' },
+  { value: 'champion', label: 'Overall Champion' },
+  { value: 'runner_up_1', label: '1st Runner Up' },
+  { value: 'runner_up_2', label: '2nd Runner Up' },
 ];
 
 const PrizesPage: React.FC = () => {
@@ -267,7 +267,7 @@ const PrizesPage: React.FC = () => {
   const getPrizeBadgeVariant = (prize: string | null) => {
     switch (prize) {
       case 'first':
-      case 'winner':
+      case 'champion':
         return 'default';
       case 'second':
       case 'runner_up_1':
