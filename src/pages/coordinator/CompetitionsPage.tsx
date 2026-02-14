@@ -26,6 +26,7 @@ interface Competition {
 }
 
 const competitionGradeOptions = [
+  { value: 'none', label: 'None' },
   { value: 'champion', label: 'Overall Champion' },
   { value: 'runner_up_1', label: '1st Runner Up' },
   { value: 'runner_up_2', label: '2nd Runner Up' },
@@ -38,6 +39,7 @@ const CompetitionsPage: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editedGrades, setEditedGrades] = useState<Record<string, string>>({});
+  const [editedStatuses, setEditedStatuses] = useState<Record<string, string>>({});
   const [newCompetition, setNewCompetition] = useState({
     name: '',
     competition_date: '',
@@ -133,7 +135,7 @@ const CompetitionsPage: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (Object.keys(editedGrades).length === 0) return;
+    if (Object.keys(editedGrades).length === 0 && Object.keys(editedStatuses).length === 0) return;
 
     setIsSaving(true);
     try {
@@ -145,10 +147,7 @@ const CompetitionsPage: React.FC = () => {
           .eq('competition_id', competitionId)
           .in('prize', ['champion', 'runner_up_1', 'runner_up_2']);
 
-        if (grade) {
-          // We need a placeholder student_id since the column is NOT NULL.
-          // For competition-level grading (not student-level), we store the grade.
-          // First check if there's any student to use as placeholder
+        if (grade && grade !== 'none') {
           const { data: anyStudent } = await supabase
             .from('students')
             .select('id')
@@ -164,19 +163,22 @@ const CompetitionsPage: React.FC = () => {
             });
           }
         }
+      }
 
-        // Mark as completed if graded
+      // Save status changes
+      for (const [competitionId, status] of Object.entries(editedStatuses)) {
         await supabase
           .from('competitions')
-          .update({ is_completed: !!grade })
+          .update({ is_completed: status === 'completed' })
           .eq('id', competitionId);
       }
 
-      toast({ title: 'Success', description: 'Competition grades saved successfully' });
+      toast({ title: 'Success', description: 'Changes saved successfully' });
       setEditedGrades({});
+      setEditedStatuses({});
       fetchCompetitions();
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'Failed to save grades', variant: 'destructive' });
+      toast({ title: 'Error', description: error.message || 'Failed to save', variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -198,7 +200,7 @@ const CompetitionsPage: React.FC = () => {
             Manage competitions and their events
           </p>
           <div className="flex items-center gap-2">
-            {Object.keys(editedGrades).length > 0 && (
+            {(Object.keys(editedGrades).length > 0 || Object.keys(editedStatuses).length > 0) && (
               <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving ? (
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
@@ -307,9 +309,24 @@ const CompetitionsPage: React.FC = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={competition.is_completed ? 'secondary' : 'default'}>
-                          {competition.is_completed ? 'Completed' : 'Active'}
-                        </Badge>
+                        {canManage ? (
+                          <Select
+                            value={editedStatuses[competition.id] ?? (competition.is_completed ? 'completed' : 'active')}
+                            onValueChange={(value) => setEditedStatuses(prev => ({ ...prev, [competition.id]: value }))}
+                          >
+                            <SelectTrigger className="w-32">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="active">Active</SelectItem>
+                              <SelectItem value="completed">Completed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge variant={competition.is_completed ? 'secondary' : 'default'}>
+                            {competition.is_completed ? 'Completed' : 'Active'}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         {canManage ? (

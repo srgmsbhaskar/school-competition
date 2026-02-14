@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Loader2, Save, Users, Search } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, Save, Users, Search, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +21,7 @@ interface Competition {
 interface Event {
   id: string;
   name: string;
+  event_type: 'solo' | 'group';
   classes: number[];
 }
 
@@ -30,6 +32,11 @@ interface Student {
   name: string;
   class: number;
   section: string;
+}
+
+interface GroupData {
+  groupNumber: number;
+  studentIds: Set<string>;
 }
 
 const CoordinatorSelectStudents: React.FC = () => {
@@ -48,6 +55,13 @@ const CoordinatorSelectStudents: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Group event state
+  const [groups, setGroups] = useState<GroupData[]>([]);
+  const [activeGroupIndex, setActiveGroupIndex] = useState<number>(0);
+
+  const selectedEventData = events.find((e) => e.id === selectedEvent);
+  const isGroupEvent = selectedEventData?.event_type === 'group';
 
   useEffect(() => {
     const fetchCompetitions = async () => {
@@ -78,10 +92,11 @@ const CoordinatorSelectStudents: React.FC = () => {
     setIsLoading(true);
     setSelectedEvent('');
     setStudents([]);
+    setGroups([]);
 
     const { data: eventsData } = await supabase
       .from('events')
-      .select('id, name')
+      .select('id, name, event_type')
       .eq('competition_id', selectedCompetition);
 
     const { data: eventClassesData } = await supabase
@@ -90,6 +105,7 @@ const CoordinatorSelectStudents: React.FC = () => {
 
     const eventsWithClasses = (eventsData || []).map((event) => ({
       ...event,
+      event_type: event.event_type as 'solo' | 'group',
       classes: (eventClassesData || [])
         .filter((ec) => ec.event_id === event.id)
         .map((ec) => ec.class),
@@ -126,23 +142,75 @@ const CoordinatorSelectStudents: React.FC = () => {
   const fetchExistingParticipations = async () => {
     const { data } = await supabase
       .from('student_participations')
-      .select('student_id, event_id')
+      .select('student_id, event_id, group_number')
       .eq('event_id', selectedEvent);
 
-    const participatingStudentIds = new Set((data || []).map((p) => p.student_id));
-    setSelectedStudents(participatingStudentIds);
+    const event = events.find((e) => e.id === selectedEvent);
+
+    if (event?.event_type === 'group') {
+      // Build groups from existing participations
+      const groupMap = new Map<number, Set<string>>();
+      (data || []).forEach((p) => {
+        const gn = p.group_number || 1;
+        if (!groupMap.has(gn)) groupMap.set(gn, new Set());
+        groupMap.get(gn)!.add(p.student_id);
+      });
+
+      if (groupMap.size === 0) {
+        setGroups([{ groupNumber: 1, studentIds: new Set() }]);
+        setActiveGroupIndex(0);
+      } else {
+        const sortedGroups = Array.from(groupMap.entries())
+          .sort((a, b) => a[0] - b[0])
+          .map(([gn, ids]) => ({ groupNumber: gn, studentIds: ids }));
+        setGroups(sortedGroups);
+        setActiveGroupIndex(0);
+      }
+      setSelectedStudents(new Set());
+    } else {
+      const participatingStudentIds = new Set((data || []).map((p) => p.student_id));
+      setSelectedStudents(participatingStudentIds);
+      setGroups([]);
+    }
   };
 
   const handleStudentToggle = (studentId: string) => {
-    setSelectedStudents((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(studentId)) {
-        newSet.delete(studentId);
-      } else {
-        newSet.add(studentId);
-      }
-      return newSet;
-    });
+    if (isGroupEvent) {
+      setGroups((prev) => {
+        const updated = [...prev];
+        const group = updated[activeGroupIndex];
+        const newIds = new Set(group.studentIds);
+        if (newIds.has(studentId)) {
+          newIds.delete(studentId);
+        } else {
+          newIds.add(studentId);
+        }
+        updated[activeGroupIndex] = { ...group, studentIds: newIds };
+        return updated;
+      });
+    } else {
+      setSelectedStudents((prev) => {
+        const newSet = new Set(prev);
+        if (newSet.has(studentId)) {
+          newSet.delete(studentId);
+        } else {
+          newSet.add(studentId);
+        }
+        return newSet;
+      });
+    }
+  };
+
+  const addGroup = () => {
+    const nextNumber = groups.length > 0 ? Math.max(...groups.map((g) => g.groupNumber)) + 1 : 1;
+    setGroups((prev) => [...prev, { groupNumber: nextNumber, studentIds: new Set() }]);
+    setActiveGroupIndex(groups.length);
+  };
+
+  const removeGroup = (index: number) => {
+    if (groups.length <= 1) return;
+    setGroups((prev) => prev.filter((_, i) => i !== index));
+    setActiveGroupIndex((prev) => Math.min(prev, groups.length - 2));
   };
 
   const handleSave = async () => {
@@ -150,31 +218,42 @@ const CoordinatorSelectStudents: React.FC = () => {
 
     setIsSaving(true);
     try {
-      const { data: currentParticipations } = await supabase
+      // Delete all existing participations for this event
+      await supabase
         .from('student_participations')
-        .select('id, student_id')
+        .delete()
         .eq('event_id', selectedEvent);
 
-      const currentStudentIds = new Set((currentParticipations || []).map((p) => p.student_id));
+      if (isGroupEvent) {
+        // Insert group participations
+        const inserts: any[] = [];
+        groups.forEach((group) => {
+          group.studentIds.forEach((studentId) => {
+            inserts.push({
+              student_id: studentId,
+              event_id: selectedEvent,
+              competition_id: selectedCompetition,
+              selected_by: user?.id,
+              group_number: group.groupNumber,
+            });
+          });
+        });
 
-      const toAdd = [...selectedStudents].filter((id) => !currentStudentIds.has(id));
-      const toRemove = (currentParticipations || [])
-        .filter((p) => !selectedStudents.has(p.student_id))
-        .map((p) => p.id);
-
-      if (toAdd.length > 0) {
-        await supabase.from('student_participations').insert(
-          toAdd.map((studentId) => ({
-            student_id: studentId,
-            event_id: selectedEvent,
-            competition_id: selectedCompetition,
-            selected_by: user?.id,
-          }))
-        );
-      }
-
-      if (toRemove.length > 0) {
-        await supabase.from('student_participations').delete().in('id', toRemove);
+        if (inserts.length > 0) {
+          await supabase.from('student_participations').insert(inserts);
+        }
+      } else {
+        // Insert solo participations
+        if (selectedStudents.size > 0) {
+          await supabase.from('student_participations').insert(
+            [...selectedStudents].map((studentId) => ({
+              student_id: studentId,
+              event_id: selectedEvent,
+              competition_id: selectedCompetition,
+              selected_by: user?.id,
+            }))
+          );
+        }
       }
 
       toast({ title: 'Success', description: 'Student selections saved successfully' });
@@ -195,6 +274,19 @@ const CoordinatorSelectStudents: React.FC = () => {
     return filtered;
   };
 
+  const isStudentSelected = (studentId: string) => {
+    if (isGroupEvent) {
+      return groups[activeGroupIndex]?.studentIds.has(studentId) || false;
+    }
+    return selectedStudents.has(studentId);
+  };
+
+  const isStudentInAnotherGroup = (studentId: string) => {
+    if (!isGroupEvent) return false;
+    return groups.some((g, i) => i !== activeGroupIndex && g.studentIds.has(studentId));
+  };
+
+  const totalGroupStudents = groups.reduce((sum, g) => sum + g.studentIds.size, 0);
   const filteredStudents = getFilteredStudents();
 
   return (
@@ -222,7 +314,9 @@ const CoordinatorSelectStudents: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {events.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.name} ({e.event_type})
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -234,11 +328,51 @@ const CoordinatorSelectStudents: React.FC = () => {
               {isSaving ? (
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
               ) : (
-                <><Save className="mr-2 h-4 w-4" />Save Selections ({selectedStudents.size})</>
+                <><Save className="mr-2 h-4 w-4" />Save Selections ({isGroupEvent ? totalGroupStudents : selectedStudents.size})</>
               )}
             </Button>
           )}
         </div>
+
+        {/* Group tabs for group events */}
+        {isGroupEvent && selectedEvent && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Groups</CardTitle>
+                <Button variant="outline" size="sm" onClick={addGroup}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Group
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {groups.map((group, index) => (
+                  <div key={group.groupNumber} className="flex items-center gap-1">
+                    <Button
+                      variant={activeGroupIndex === index ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setActiveGroupIndex(index)}
+                    >
+                      Group {group.groupNumber} ({group.studentIds.size})
+                    </Button>
+                    {groups.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => removeGroup(index)}
+                      >
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
@@ -246,10 +380,12 @@ const CoordinatorSelectStudents: React.FC = () => {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <Users className="h-5 w-5" />
-                  Select Students
+                  {isGroupEvent ? `Select Students for Group ${groups[activeGroupIndex]?.groupNumber || 1}` : 'Select Students'}
                 </CardTitle>
                 <CardDescription>
-                  Choose students for this event
+                  {isGroupEvent
+                    ? 'Add students to the selected group. Students already in another group are dimmed.'
+                    : 'Choose students for this event'}
                 </CardDescription>
               </div>
               {selectedEvent && (
@@ -293,24 +429,42 @@ const CoordinatorSelectStudents: React.FC = () => {
                       <TableHead>Name</TableHead>
                       <TableHead>Class</TableHead>
                       <TableHead>Section</TableHead>
+                      {isGroupEvent && <TableHead>Group</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredStudents.map((student) => (
-                      <TableRow key={student.id}>
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedStudents.has(student.id)}
-                            onCheckedChange={() => handleStudentToggle(student.id)}
-                          />
-                        </TableCell>
-                        <TableCell>{student.s_no}</TableCell>
-                        <TableCell className="font-mono">{student.admission_no}</TableCell>
-                        <TableCell className="font-medium">{student.name}</TableCell>
-                        <TableCell>{student.class}</TableCell>
-                        <TableCell>{student.section}</TableCell>
-                      </TableRow>
-                    ))}
+                    {filteredStudents.map((student) => {
+                      const inAnotherGroup = isStudentInAnotherGroup(student.id);
+                      const assignedGroup = isGroupEvent
+                        ? groups.find((g) => g.studentIds.has(student.id))
+                        : null;
+
+                      return (
+                        <TableRow key={student.id} className={inAnotherGroup ? 'opacity-50' : ''}>
+                          <TableCell>
+                            <Checkbox
+                              checked={isStudentSelected(student.id)}
+                              onCheckedChange={() => handleStudentToggle(student.id)}
+                              disabled={inAnotherGroup}
+                            />
+                          </TableCell>
+                          <TableCell>{student.s_no}</TableCell>
+                          <TableCell className="font-mono">{student.admission_no}</TableCell>
+                          <TableCell className="font-medium">{student.name}</TableCell>
+                          <TableCell>{student.class}</TableCell>
+                          <TableCell>{student.section}</TableCell>
+                          {isGroupEvent && (
+                            <TableCell>
+                              {assignedGroup ? (
+                                <Badge variant="outline">Group {assignedGroup.groupNumber}</Badge>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

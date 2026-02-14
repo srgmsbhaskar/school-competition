@@ -122,7 +122,8 @@ const PrizesPage: React.FC = () => {
         const { data } = await supabase
           .from('student_participations')
           .select('*, student:students(*)')
-          .eq('event_id', selectedEvent);
+          .eq('event_id', selectedEvent)
+          .order('group_number');
         setParticipations(data || []);
         setUpdatedPrizes({});
         setIsLoading(false);
@@ -165,16 +166,29 @@ const PrizesPage: React.FC = () => {
   const handleSaveEventPrizes = async () => {
     setIsSaving(true);
     try {
-      const updates = Object.entries(updatedPrizes).map(([id, prize]) => ({
-        id,
-        prize,
-      }));
-
-      for (const update of updates) {
-        await supabase
-          .from('student_participations')
-          .update({ prize: update.prize as any })
-          .eq('id', update.id);
+      if (selectedEventData?.event_type === 'group') {
+        // For group events, apply the prize to all members of the group
+        for (const [groupKey, prize] of Object.entries(updatedPrizes)) {
+          const groupNumber = parseInt(groupKey.replace('group_', ''));
+          const groupParticipations = participations.filter((p: any) => p.group_number === groupNumber);
+          for (const p of groupParticipations) {
+            await supabase
+              .from('student_participations')
+              .update({ prize: prize as any })
+              .eq('id', p.id);
+          }
+        }
+      } else {
+        const updates = Object.entries(updatedPrizes).map(([id, prize]) => ({
+          id,
+          prize,
+        }));
+        for (const update of updates) {
+          await supabase
+            .from('student_participations')
+            .update({ prize: update.prize as any })
+            .eq('id', update.id);
+        }
       }
 
       toast({
@@ -184,11 +198,11 @@ const PrizesPage: React.FC = () => {
 
       setUpdatedPrizes({});
       
-      // Refresh participations
       const { data } = await supabase
         .from('student_participations')
         .select('*, student:students(*)')
-        .eq('event_id', selectedEvent);
+        .eq('event_id', selectedEvent)
+        .order('group_number');
       setParticipations(data || []);
     } catch (error: any) {
       console.error('Error saving prizes:', error);
@@ -369,6 +383,72 @@ const PrizesPage: React.FC = () => {
                     <div className="text-center py-8 text-muted-foreground">
                       No participants found for this event
                     </div>
+                  ) : selectedEventData?.event_type === 'group' ? (
+                    (() => {
+                      // Group participations by group_number
+                      const groupMap = new Map<number, typeof participations>();
+                      participations.forEach((p: any) => {
+                        const gn = p.group_number || 1;
+                        if (!groupMap.has(gn)) groupMap.set(gn, []);
+                        groupMap.get(gn)!.push(p);
+                      });
+                      const sortedGroups = Array.from(groupMap.entries()).sort((a, b) => a[0] - b[0]);
+                      
+                      return (
+                        <div className="space-y-6">
+                          {sortedGroups.map(([groupNumber, members]) => {
+                            const groupPrize = updatedPrizes[`group_${groupNumber}`] ?? members[0]?.prize ?? '';
+                            return (
+                              <div key={groupNumber} className="border rounded-lg p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                  <h3 className="font-semibold text-base">Group {groupNumber}</h3>
+                                  <div className="flex items-center gap-3">
+                                    {groupPrize && groupPrize !== '' && (
+                                      <Badge variant={getPrizeBadgeVariant(groupPrize)}>
+                                        {individualPrizeOptions.find((o) => o.value === groupPrize)?.label || groupPrize}
+                                      </Badge>
+                                    )}
+                                    <Select
+                                      value={groupPrize}
+                                      onValueChange={(value) => handlePrizeChange(`group_${groupNumber}`, value)}
+                                    >
+                                      <SelectTrigger className="w-40">
+                                        <SelectValue placeholder="Select prize" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {individualPrizeOptions.map((option) => (
+                                          <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Student</TableHead>
+                                      <TableHead>Admission No.</TableHead>
+                                      <TableHead>Class</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {members.map((p) => (
+                                      <TableRow key={p.id}>
+                                        <TableCell className="font-medium">{p.student?.name}</TableCell>
+                                        <TableCell className="font-mono">{p.student?.admission_no}</TableCell>
+                                        <TableCell>{p.student?.class}-{p.student?.section}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()
                   ) : (
                     <Table>
                       <TableHeader>
