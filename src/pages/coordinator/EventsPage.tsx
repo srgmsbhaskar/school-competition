@@ -208,7 +208,7 @@ const EventsPage: React.FC = () => {
             </Select>
           </div>
           
-          {selectedCompetition && events.length < 10 && (
+          {selectedCompetition && events.length < 30 && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
@@ -220,7 +220,7 @@ const EventsPage: React.FC = () => {
                 <DialogHeader>
                   <DialogTitle>Add New Event</DialogTitle>
                   <DialogDescription>
-                    Create a new event for this competition (max 10 events)
+                    Create a new event for this competition (max 30 events)
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleCreate}>
@@ -309,7 +309,7 @@ const EventsPage: React.FC = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Events {events.length > 0 && `(${events.length}/10)`}</CardTitle>
+            <CardTitle>Events {events.length > 0 && `(${events.length}/30)`}</CardTitle>
             <CardDescription>
               {selectedCompetition 
                 ? 'Events for this competition' 

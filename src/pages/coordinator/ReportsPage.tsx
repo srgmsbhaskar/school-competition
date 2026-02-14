@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Trophy, Users, Award, Download, FileSpreadsheet, FileText, Calendar, MapPin } from 'lucide-react';
+import { Loader2, Trophy, Users, Award, FileSpreadsheet, FileText, Calendar, MapPin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { exportToPDF, exportToExcel } from '@/lib/exportUtils';
 import { format } from 'date-fns';
@@ -384,10 +384,6 @@ const ReportsPage: React.FC = () => {
               <Trophy className="h-4 w-4" />
               Prize Winners
             </TabsTrigger>
-            <TabsTrigger value="competition-prizes" className="flex items-center gap-2">
-              <Award className="h-4 w-4" />
-              Competition Prizes
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="participation" className="mt-6">
@@ -575,69 +571,6 @@ const ReportsPage: React.FC = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="competition-prizes" className="mt-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Trophy className="h-5 w-5 text-primary" />
-                      Competition Overall Prizes
-                    </CardTitle>
-                    <CardDescription>
-                      Overall competition winners (Winner, Runner Up 1, Runner Up 2)
-                    </CardDescription>
-                  </div>
-                  {competitionPrizes.length > 0 && (
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={handleExportCompetitionPrizesPDF}>
-                        <FileText className="mr-2 h-4 w-4" />
-                        PDF
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={handleExportCompetitionPrizesExcel}>
-                        <FileSpreadsheet className="mr-2 h-4 w-4" />
-                        Excel
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                {competitionPrizes.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No competition prizes awarded yet
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Competition</TableHead>
-                        <TableHead>Prize</TableHead>
-                        <TableHead>Student</TableHead>
-                        <TableHead>Admission No.</TableHead>
-                        <TableHead>Class</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {competitionPrizes.map((p) => (
-                        <TableRow key={p.id}>
-                          <TableCell className="font-medium">{p.competition?.name}</TableCell>
-                          <TableCell>
-                            <Badge variant={getPrizeBadgeVariant(p.prize)}>
-                              {formatPrize(p.prize)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{p.student?.name}</TableCell>
-                          <TableCell className="font-mono">{p.student?.admission_no}</TableCell>
-                          <TableCell>{p.student?.class}-{p.student?.section}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
       </div>
     </DashboardLayout>

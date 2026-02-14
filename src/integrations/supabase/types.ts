@@ -234,6 +234,7 @@ export type Database = {
           competition_id: string
           created_at: string | null
           event_id: string
+          group_number: number | null
           id: string
           prize: Database["public"]["Enums"]["prize_type"] | null
           selected_by: string | null
@@ -244,6 +245,7 @@ export type Database = {
           competition_id: string
           created_at?: string | null
           event_id: string
+          group_number?: number | null
           id?: string
           prize?: Database["public"]["Enums"]["prize_type"] | null
           selected_by?: string | null
@@ -254,6 +256,7 @@ export type Database = {
           competition_id?: string
           created_at?: string | null
           event_id?: string
+          group_number?: number | null
           id?: string
           prize?: Database["public"]["Enums"]["prize_type"] | null
           selected_by?: string | null
