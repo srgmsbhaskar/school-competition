@@ -1,127 +1,113 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Trophy, Calendar, Award, Users } from 'lucide-react';
+import { Trophy, Dumbbell, Globe, MoreHorizontal } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
+interface DepartmentCard {
+  key: string;
+  title: string;
+  description: string;
+  icon: React.ElementType;
+  path: string;
+  count: number;
+}
+
 const CoordinatorDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [stats, setStats] = useState({
-    totalCompetitions: 0,
-    upcomingEvents: 0,
-    totalParticipants: 0,
-    prizesAwarded: 0,
+  const [counts, setCounts] = useState<Record<string, number>>({
+    external: 0,
+    internal: 0,
+    sports: 0,
+    other: 0,
   });
 
   useEffect(() => {
-    const fetchStats = async () => {
-      const [competitions, participations] = await Promise.all([
-        supabase.from('competitions').select('id', { count: 'exact' }),
-        supabase.from('student_participations').select('id, prize', { count: 'exact' }),
-      ]);
+    const fetchCounts = async () => {
+      const { data } = await supabase
+        .from('competitions')
+        .select('department');
 
-      const prizesCount = participations.data?.filter(p => p.prize && p.prize !== 'participation').length || 0;
-
-      setStats({
-        totalCompetitions: competitions.count || 0,
-        upcomingEvents: 0,
-        totalParticipants: participations.count || 0,
-        prizesAwarded: prizesCount,
-      });
+      if (data) {
+        const c: Record<string, number> = { external: 0, internal: 0, sports: 0, other: 0 };
+        data.forEach((row: any) => {
+          if (c[row.department] !== undefined) c[row.department]++;
+        });
+        setCounts(c);
+      }
     };
-
-    fetchStats();
+    fetchCounts();
   }, []);
 
-  const statCards = [
+  const departments: DepartmentCard[] = [
     {
-      title: 'Total Competitions',
-      value: stats.totalCompetitions,
+      key: 'external',
+      title: 'External Competition',
+      description: 'Manage competitions organized by external bodies',
+      icon: Globe,
+      path: '/coordinator/external/competitions',
+      count: counts.external,
+    },
+    {
+      key: 'internal',
+      title: 'Internal Competition',
+      description: 'Manage school-level internal competitions',
       icon: Trophy,
-      path: '/coordinator/competitions',
+      path: '/coordinator/internal/competitions',
+      count: counts.internal,
     },
     {
-      title: 'Total Participants',
-      value: stats.totalParticipants,
-      icon: Users,
-      path: '/coordinator/reports',
+      key: 'sports',
+      title: 'Sports',
+      description: 'Manage sports events and competitions',
+      icon: Dumbbell,
+      path: '/coordinator/sports/competitions',
+      count: counts.sports,
     },
     {
-      title: 'Prizes Awarded',
-      value: stats.prizesAwarded,
-      icon: Award,
-      path: '/coordinator/prizes',
-    },
-  ];
-
-  const quickActions = [
-    {
-      title: 'Create Competition',
-      description: 'Set up a new competition with events',
-      icon: Trophy,
-      path: '/coordinator/competitions',
-    },
-    {
-      title: 'Assign Teachers',
-      description: 'Assign teachers to competition classes',
-      icon: Users,
-      path: '/coordinator/assign-teachers',
-    },
-    {
-      title: 'View Reports',
-      description: 'See participation and prize reports',
-      icon: Award,
-      path: '/coordinator/reports',
+      key: 'other',
+      title: 'Other Competition',
+      description: 'Manage other types of competitions',
+      icon: MoreHorizontal,
+      path: '/coordinator/other/competitions',
+      count: counts.other,
     },
   ];
 
   return (
     <DashboardLayout title="Coordinator Dashboard">
       <div className="space-y-6 animate-fade-in">
-        <div className="grid gap-4 md:grid-cols-3">
-          {statCards.map((stat) => (
+        <div>
+          <h2 className="text-xl font-semibold mb-1">Departments</h2>
+          <p className="text-muted-foreground text-sm mb-4">
+            Select a department to manage its competitions, events, and reports.
+          </p>
+        </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          {departments.map((dept) => (
             <Card
-              key={stat.title}
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => navigate(stat.path)}
+              key={dept.key}
+              className="cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all"
+              onClick={() => navigate(dept.path)}
             >
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {stat.title}
-                </CardTitle>
-                <stat.icon className="h-4 w-4 text-muted-foreground" />
+              <CardHeader>
+                <div className="flex items-center gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10">
+                    <dept.icon className="h-7 w-7 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <CardTitle className="text-lg">{dept.title}</CardTitle>
+                    <CardDescription>{dept.description}</CardDescription>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
+                <p className="text-2xl font-bold">{dept.count}</p>
+                <p className="text-xs text-muted-foreground">Competitions</p>
               </CardContent>
             </Card>
           ))}
-        </div>
-
-        <div>
-          <h2 className="section-header">Quick Actions</h2>
-          <div className="grid gap-4 md:grid-cols-3">
-            {quickActions.map((action) => (
-              <Card
-                key={action.title}
-                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
-                onClick={() => navigate(action.path)}
-              >
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                      <action.icon className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-base">{action.title}</CardTitle>
-                      <CardDescription>{action.description}</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-            ))}
-          </div>
         </div>
       </div>
     </DashboardLayout>

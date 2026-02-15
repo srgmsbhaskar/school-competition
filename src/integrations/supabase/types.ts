@@ -104,6 +104,7 @@ export type Database = {
           competition_date: string
           created_at: string | null
           created_by: string | null
+          department: Database["public"]["Enums"]["competition_department"]
           id: string
           is_completed: boolean | null
           name: string
@@ -115,6 +116,7 @@ export type Database = {
           competition_date: string
           created_at?: string | null
           created_by?: string | null
+          department?: Database["public"]["Enums"]["competition_department"]
           id?: string
           is_completed?: boolean | null
           name: string
@@ -126,6 +128,7 @@ export type Database = {
           competition_date?: string
           created_at?: string | null
           created_by?: string | null
+          department?: Database["public"]["Enums"]["competition_department"]
           id?: string
           is_completed?: boolean | null
           name?: string
@@ -395,6 +398,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "coordinator" | "teacher"
+      competition_department: "external" | "internal" | "sports" | "other"
       event_type: "solo" | "group"
       prize_type:
         | "participation"
@@ -534,6 +538,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "coordinator", "teacher"],
+      competition_department: ["external", "internal", "sports", "other"],
       event_type: ["solo", "group"],
       prize_type: [
         "participation",

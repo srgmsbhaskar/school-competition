@@ -8,230 +8,94 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Trophy, Users, Award, FileSpreadsheet, FileText, Calendar, MapPin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { exportToPDF, exportToExcel } from '@/lib/exportUtils';
+import { exportToPDF, exportToExcel, type PageSize } from '@/lib/exportUtils';
 import { format } from 'date-fns';
+import { useDepartment } from '@/hooks/useDepartment';
 
-interface Competition {
-  id: string;
-  name: string;
-  competition_date: string;
-  venue: string;
-}
-
-interface ParticipationReport {
-  id: string;
-  student_name: string;
-  admission_no: string;
-  class: number;
-  section: string;
-  event_name: string;
-  event_type: string;
-  prize: string | null;
-}
-
-interface PrizeWinner {
-  student_name: string;
-  admission_no: string;
-  class: number;
-  section: string;
-  total_prizes: number;
-  prizes: { event: string; prize: string; competition: string }[];
-}
-
-interface CompetitionPrize {
-  id: string;
-  competition_id: string;
-  student_id: string;
-  prize: string;
-  student?: {
-    name: string;
-    admission_no: string;
-    class: number;
-    section: string;
-  };
-  competition?: {
-    name: string;
-  };
-}
+interface Competition { id: string; name: string; competition_date: string; venue: string; }
+interface ParticipationReport { id: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; event_type: string; prize: string | null; }
+interface PrizeWinner { student_name: string; admission_no: string; class: number; section: string; total_prizes: number; prizes: { event: string; prize: string; competition: string }[]; }
 
 const prizeRanking: Record<string, number> = {
-  winner: 15,
-  runner_up_1: 12,
-  runner_up_2: 10,
-  first: 9,
-  second: 8,
-  third: 5,
-  consolation: 3,
+  winner: 15, runner_up_1: 12, runner_up_2: 10, first: 9, second: 8, third: 5, consolation: 3,
 };
 
 const ReportsPage: React.FC = () => {
+  const { department, departmentLabel } = useDepartment();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [selectedCompetition, setSelectedCompetition] = useState<string>('');
   const [participations, setParticipations] = useState<ParticipationReport[]>([]);
   const [prizeWinners, setPrizeWinners] = useState<PrizeWinner[]>([]);
-  const [competitionPrizes, setCompetitionPrizes] = useState<CompetitionPrize[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [pageSize, setPageSize] = useState<PageSize>('a4');
 
   useEffect(() => {
     const fetchCompetitions = async () => {
-      const { data } = await supabase
-        .from('competitions')
-        .select('id, name, competition_date, venue')
-        .order('competition_date', { ascending: false });
+      const { data } = await supabase.from('competitions').select('id, name, competition_date, venue').eq('department', department).order('competition_date', { ascending: false });
       setCompetitions(data || []);
       setIsLoading(false);
     };
     fetchCompetitions();
-  }, []);
+  }, [department]);
 
   useEffect(() => {
-    if (selectedCompetition) {
-      fetchParticipationReport();
-    }
+    if (selectedCompetition) fetchParticipationReport();
   }, [selectedCompetition]);
 
-  useEffect(() => {
-    fetchPrizeWinners();
-    fetchCompetitionPrizes();
-  }, []);
+  useEffect(() => { fetchPrizeWinners(); }, [department]);
 
   const fetchParticipationReport = async () => {
     setIsLoading(true);
-    const { data } = await supabase
-      .from('student_participations')
-      .select(`
-        id,
-        prize,
-        student:students(name, admission_no, class, section),
-        event:events(name, event_type)
-      `)
-      .eq('competition_id', selectedCompetition);
-
+    const { data } = await supabase.from('student_participations').select(`id, prize, student:students(name, admission_no, class, section), event:events(name, event_type)`).eq('competition_id', selectedCompetition);
     const report: ParticipationReport[] = (data || []).map((p: any) => ({
-      id: p.id,
-      student_name: p.student?.name || '',
-      admission_no: p.student?.admission_no || '',
-      class: p.student?.class || 0,
-      section: p.student?.section || '',
-      event_name: p.event?.name || '',
-      event_type: p.event?.event_type || 'solo',
-      prize: p.prize,
+      id: p.id, student_name: p.student?.name || '', admission_no: p.student?.admission_no || '', class: p.student?.class || 0, section: p.student?.section || '', event_name: p.event?.name || '', event_type: p.event?.event_type || 'solo', prize: p.prize,
     }));
-
     setParticipations(report);
     setIsLoading(false);
   };
 
   const fetchPrizeWinners = async () => {
-    const { data } = await supabase
-      .from('student_participations')
-      .select(`
-        prize,
-        student:students(id, name, admission_no, class, section),
-        event:events(name),
-        competition:competitions(name)
-      `)
-      .not('prize', 'is', null);
+    // Get competition IDs for this department
+    const { data: deptCompetitions } = await supabase.from('competitions').select('id').eq('department', department);
+    const competitionIds = (deptCompetitions || []).map((c) => c.id);
+    if (competitionIds.length === 0) { setPrizeWinners([]); return; }
+
+    const { data } = await supabase.from('student_participations').select(`prize, student:students(id, name, admission_no, class, section), event:events(name), competition:competitions(name)`).not('prize', 'is', null).in('competition_id', competitionIds);
 
     const winnersMap = new Map<string, PrizeWinner>();
-
     (data || []).forEach((p: any) => {
       const studentId = p.student?.id;
       if (!studentId) return;
-
       if (!winnersMap.has(studentId)) {
-        winnersMap.set(studentId, {
-          student_name: p.student.name,
-          admission_no: p.student.admission_no,
-          class: p.student.class,
-          section: p.student.section,
-          total_prizes: 0,
-          prizes: [],
-        });
+        winnersMap.set(studentId, { student_name: p.student.name, admission_no: p.student.admission_no, class: p.student.class, section: p.student.section, total_prizes: 0, prizes: [] });
       }
-
       const winner = winnersMap.get(studentId)!;
       winner.total_prizes += prizeRanking[p.prize] || 0;
-      winner.prizes.push({
-        event: p.event?.name || '',
-        prize: p.prize,
-        competition: p.competition?.name || '',
-      });
+      winner.prizes.push({ event: p.event?.name || '', prize: p.prize, competition: p.competition?.name || '' });
     });
-
-    const sortedWinners = Array.from(winnersMap.values()).sort(
-      (a, b) => b.total_prizes - a.total_prizes
-    );
-
-    setPrizeWinners(sortedWinners);
-  };
-
-  const fetchCompetitionPrizes = async () => {
-    const { data } = await supabase
-      .from('competition_prizes')
-      .select('*, student:students(*), competition:competitions(name)');
-    setCompetitionPrizes(data || []);
+    setPrizeWinners(Array.from(winnersMap.values()).sort((a, b) => b.total_prizes - a.total_prizes));
   };
 
   const getPrizeBadgeVariant = (prize: string | null) => {
-    switch (prize) {
-      case 'first':
-      case 'winner':
-        return 'default';
-      case 'second':
-      case 'runner_up_1':
-        return 'secondary';
-      default:
-        return 'outline';
-    }
+    switch (prize) { case 'first': case 'winner': return 'default'; case 'second': case 'runner_up_1': return 'secondary'; default: return 'outline'; }
   };
 
   const formatPrize = (prize: string) => {
-    const labels: Record<string, string> = {
-      winner: 'Winner',
-      runner_up_1: 'Runner Up 1',
-      runner_up_2: 'Runner Up 2',
-      first: 'First',
-      second: 'Second',
-      third: 'Third',
-      consolation: 'Consolation',
-    };
+    const labels: Record<string, string> = { winner: 'Winner', runner_up_1: 'Runner Up 1', runner_up_2: 'Runner Up 2', first: 'First', second: 'Second', third: 'Third', consolation: 'Consolation' };
     return labels[prize] || prize;
   };
 
-  // Get selected competition details
   const selectedCompetitionData = competitions.find((c) => c.id === selectedCompetition);
 
-  // Export handlers
   const handleExportParticipationPDF = () => {
     const comp = selectedCompetitionData;
     const competitionName = comp?.name || 'Competition';
     const competitionDate = comp?.competition_date ? format(new Date(comp.competition_date), 'dd MMM yyyy') : '';
     const venue = comp?.venue || '';
-    
-    const exportData = participations.map((p) => ({
-      student_name: p.student_name,
-      admission_no: p.admission_no,
-      class: p.class,
-      section: p.section,
-      event_name: p.event_name,
-      event_type: p.event_type,
-      prize: p.prize ? formatPrize(p.prize) : '—',
-    }));
-    exportToPDF(
-      exportData,
-      [
-        { header: 'Student Name', key: 'student_name' },
-        { header: 'Admission No.', key: 'admission_no' },
-        { header: 'Class', key: 'class' },
-        { header: 'Section', key: 'section' },
-        { header: 'Event', key: 'event_name' },
-        { header: 'Type', key: 'event_type' },
-        { header: 'Prize', key: 'prize' },
-      ],
-      `Participation Report\n${competitionName}\nDate: ${competitionDate} | Venue: ${venue}`,
-      `participation-report-${competitionName.toLowerCase().replace(/\s+/g, '-')}`
-    );
+    const exportData = participations.map((p) => ({ student_name: p.student_name, admission_no: p.admission_no, class: p.class, section: p.section, event_name: p.event_name, event_type: p.event_type, prize: p.prize ? formatPrize(p.prize) : '—' }));
+    exportToPDF(exportData, [
+      { header: 'Student Name', key: 'student_name' }, { header: 'Admission No.', key: 'admission_no' }, { header: 'Class', key: 'class' }, { header: 'Section', key: 'section' }, { header: 'Event', key: 'event_name' }, { header: 'Type', key: 'event_type' }, { header: 'Prize', key: 'prize' },
+    ], `Participation Report\n${competitionName}\nDate: ${competitionDate} | Venue: ${venue}`, `participation-report-${competitionName.toLowerCase().replace(/\s+/g, '-')}`, pageSize);
   };
 
   const handleExportParticipationExcel = () => {
@@ -239,151 +103,45 @@ const ReportsPage: React.FC = () => {
     const competitionName = comp?.name || 'Competition';
     const competitionDate = comp?.competition_date ? format(new Date(comp.competition_date), 'dd MMM yyyy') : '';
     const venue = comp?.venue || '';
-    
-    const exportData = participations.map((p) => ({
-      competition_name: competitionName,
-      competition_date: competitionDate,
-      venue: venue,
-      student_name: p.student_name,
-      admission_no: p.admission_no,
-      class: p.class,
-      section: p.section,
-      event_name: p.event_name,
-      event_type: p.event_type,
-      prize: p.prize ? formatPrize(p.prize) : '—',
-    }));
-    exportToExcel(
-      exportData,
-      [
-        { header: 'Competition', key: 'competition_name' },
-        { header: 'Date', key: 'competition_date' },
-        { header: 'Venue', key: 'venue' },
-        { header: 'Student Name', key: 'student_name' },
-        { header: 'Admission No.', key: 'admission_no' },
-        { header: 'Class', key: 'class' },
-        { header: 'Section', key: 'section' },
-        { header: 'Event', key: 'event_name' },
-        { header: 'Type', key: 'event_type' },
-        { header: 'Prize', key: 'prize' },
-      ],
-      'Participation',
-      `participation-report-${competitionName.toLowerCase().replace(/\s+/g, '-')}`
-    );
+    const exportData = participations.map((p) => ({ competition_name: competitionName, competition_date: competitionDate, venue: venue, student_name: p.student_name, admission_no: p.admission_no, class: p.class, section: p.section, event_name: p.event_name, event_type: p.event_type, prize: p.prize ? formatPrize(p.prize) : '—' }));
+    exportToExcel(exportData, [
+      { header: 'Competition', key: 'competition_name' }, { header: 'Date', key: 'competition_date' }, { header: 'Venue', key: 'venue' }, { header: 'Student Name', key: 'student_name' }, { header: 'Admission No.', key: 'admission_no' }, { header: 'Class', key: 'class' }, { header: 'Section', key: 'section' }, { header: 'Event', key: 'event_name' }, { header: 'Type', key: 'event_type' }, { header: 'Prize', key: 'prize' },
+    ], 'Participation', `participation-report-${competitionName.toLowerCase().replace(/\s+/g, '-')}`, `Participation Report\n${competitionName}\nDate: ${competitionDate} | Venue: ${venue}`);
   };
 
   const handleExportWinnersPDF = () => {
-    const winnersData = prizeWinners.map((w, idx) => ({
-      rank: idx + 1,
-      student_name: w.student_name,
-      admission_no: w.admission_no,
-      class: w.class,
-      section: w.section,
-      prizes: w.prizes.map((p) => formatPrize(p.prize)).join(', '),
-      points: w.total_prizes,
-    }));
-    exportToPDF(
-      winnersData,
-      [
-        { header: 'Rank', key: 'rank' },
-        { header: 'Student Name', key: 'student_name' },
-        { header: 'Admission No.', key: 'admission_no' },
-        { header: 'Class', key: 'class' },
-        { header: 'Section', key: 'section' },
-        { header: 'Prizes', key: 'prizes' },
-        { header: 'Points', key: 'points' },
-      ],
-      'Prize Winners Report',
-      'prize-winners-report'
-    );
+    const winnersData = prizeWinners.map((w, idx) => ({ rank: idx + 1, student_name: w.student_name, admission_no: w.admission_no, class: w.class, section: w.section, prizes: w.prizes.map((p) => formatPrize(p.prize)).join(', '), points: w.total_prizes }));
+    exportToPDF(winnersData, [
+      { header: 'Rank', key: 'rank' }, { header: 'Student Name', key: 'student_name' }, { header: 'Admission No.', key: 'admission_no' }, { header: 'Class', key: 'class' }, { header: 'Section', key: 'section' }, { header: 'Prizes', key: 'prizes' }, { header: 'Points', key: 'points' },
+    ], `Prize Winners Report - ${departmentLabel}`, 'prize-winners-report', pageSize);
   };
 
   const handleExportWinnersExcel = () => {
-    const winnersData = prizeWinners.map((w, idx) => ({
-      rank: idx + 1,
-      student_name: w.student_name,
-      admission_no: w.admission_no,
-      class: w.class,
-      section: w.section,
-      prizes: w.prizes.map((p) => formatPrize(p.prize)).join(', '),
-      points: w.total_prizes,
-    }));
-    exportToExcel(
-      winnersData,
-      [
-        { header: 'Rank', key: 'rank' },
-        { header: 'Student Name', key: 'student_name' },
-        { header: 'Admission No.', key: 'admission_no' },
-        { header: 'Class', key: 'class' },
-        { header: 'Section', key: 'section' },
-        { header: 'Prizes', key: 'prizes' },
-        { header: 'Points', key: 'points' },
-      ],
-      'Prize Winners',
-      'prize-winners-report'
-    );
-  };
-
-  const handleExportCompetitionPrizesPDF = () => {
-    const prizeData = competitionPrizes.map((p) => ({
-      competition: p.competition?.name || '',
-      prize: formatPrize(p.prize),
-      student_name: p.student?.name || '',
-      admission_no: p.student?.admission_no || '',
-      class: p.student?.class || '',
-      section: p.student?.section || '',
-    }));
-    exportToPDF(
-      prizeData,
-      [
-        { header: 'Competition', key: 'competition' },
-        { header: 'Prize', key: 'prize' },
-        { header: 'Student Name', key: 'student_name' },
-        { header: 'Admission No.', key: 'admission_no' },
-        { header: 'Class', key: 'class' },
-        { header: 'Section', key: 'section' },
-      ],
-      'Competition Prizes Report',
-      'competition-prizes-report'
-    );
-  };
-
-  const handleExportCompetitionPrizesExcel = () => {
-    const prizeData = competitionPrizes.map((p) => ({
-      competition: p.competition?.name || '',
-      prize: formatPrize(p.prize),
-      student_name: p.student?.name || '',
-      admission_no: p.student?.admission_no || '',
-      class: p.student?.class || '',
-      section: p.student?.section || '',
-    }));
-    exportToExcel(
-      prizeData,
-      [
-        { header: 'Competition', key: 'competition' },
-        { header: 'Prize', key: 'prize' },
-        { header: 'Student Name', key: 'student_name' },
-        { header: 'Admission No.', key: 'admission_no' },
-        { header: 'Class', key: 'class' },
-        { header: 'Section', key: 'section' },
-      ],
-      'Competition Prizes',
-      'competition-prizes-report'
-    );
+    const winnersData = prizeWinners.map((w, idx) => ({ rank: idx + 1, student_name: w.student_name, admission_no: w.admission_no, class: w.class, section: w.section, prizes: w.prizes.map((p) => formatPrize(p.prize)).join(', '), points: w.total_prizes }));
+    exportToExcel(winnersData, [
+      { header: 'Rank', key: 'rank' }, { header: 'Student Name', key: 'student_name' }, { header: 'Admission No.', key: 'admission_no' }, { header: 'Class', key: 'class' }, { header: 'Section', key: 'section' }, { header: 'Prizes', key: 'prizes' }, { header: 'Points', key: 'points' },
+    ], 'Prize Winners', 'prize-winners-report', `Prize Winners Report - ${departmentLabel}`);
   };
 
   return (
-    <DashboardLayout title="Reports">
+    <DashboardLayout title={`${departmentLabel} - Reports`}>
       <div className="space-y-6 animate-fade-in">
+        {/* Page Size Selector */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">Export Page Size:</span>
+          <Select value={pageSize} onValueChange={(v) => setPageSize(v as PageSize)}>
+            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="a4">A4</SelectItem>
+              <SelectItem value="legal">Legal</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         <Tabs defaultValue="participation">
           <TabsList>
-            <TabsTrigger value="participation" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Participation
-            </TabsTrigger>
-            <TabsTrigger value="winners" className="flex items-center gap-2">
-              <Trophy className="h-4 w-4" />
-              Prize Winners
-            </TabsTrigger>
+            <TabsTrigger value="participation" className="flex items-center gap-2"><Users className="h-4 w-4" />Participation</TabsTrigger>
+            <TabsTrigger value="winners" className="flex items-center gap-2"><Trophy className="h-4 w-4" />Prize Winners</TabsTrigger>
           </TabsList>
 
           <TabsContent value="participation" className="mt-6">
@@ -392,35 +150,21 @@ const ReportsPage: React.FC = () => {
                 <div className="flex items-center justify-between flex-wrap gap-4">
                   <div>
                     <CardTitle>Participation Report</CardTitle>
-                    <CardDescription>
-                      View students participating in each competition
-                    </CardDescription>
+                    <CardDescription>View students participating in each competition</CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-64">
                       <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select competition" />
-                        </SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Select competition" /></SelectTrigger>
                         <SelectContent>
-                          {competitions.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.name}
-                            </SelectItem>
-                          ))}
+                          {competitions.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
                         </SelectContent>
                       </Select>
                     </div>
                     {participations.length > 0 && (
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={handleExportParticipationPDF}>
-                          <FileText className="mr-2 h-4 w-4" />
-                          PDF
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={handleExportParticipationExcel}>
-                          <FileSpreadsheet className="mr-2 h-4 w-4" />
-                          Excel
-                        </Button>
+                        <Button variant="outline" size="sm" onClick={handleExportParticipationPDF}><FileText className="mr-2 h-4 w-4" />PDF</Button>
+                        <Button variant="outline" size="sm" onClick={handleExportParticipationExcel}><FileSpreadsheet className="mr-2 h-4 w-4" />Excel</Button>
                       </div>
                     )}
                   </div>
@@ -428,71 +172,41 @@ const ReportsPage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 {!selectedCompetition ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Please select a competition to view participation report
-                  </div>
+                  <div className="text-center py-8 text-muted-foreground">Please select a competition to view participation report</div>
                 ) : isLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  </div>
+                  <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
                 ) : participations.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No participants found
-                  </div>
+                  <div className="text-center py-8 text-muted-foreground">No participants found</div>
                 ) : (
                   <div className="space-y-4">
-                    {/* Competition Details Header */}
                     {selectedCompetitionData && (
                       <div className="bg-muted/50 rounded-lg p-4 border">
                         <h3 className="font-semibold text-lg">{selectedCompetitionData.name}</h3>
                         <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-4 w-4" />
-                            <span>{format(new Date(selectedCompetitionData.competition_date), 'dd MMMM yyyy')}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <MapPin className="h-4 w-4" />
-                            <span>{selectedCompetitionData.venue}</span>
-                          </div>
+                          <div className="flex items-center gap-1"><Calendar className="h-4 w-4" /><span>{format(new Date(selectedCompetitionData.competition_date), 'dd MMMM yyyy')}</span></div>
+                          <div className="flex items-center gap-1"><MapPin className="h-4 w-4" /><span>{selectedCompetitionData.venue}</span></div>
                         </div>
                       </div>
                     )}
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Student</TableHead>
-                        <TableHead>Admission No.</TableHead>
-                        <TableHead>Class</TableHead>
-                        <TableHead>Event</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Prize</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {participations.map((p) => (
-                        <TableRow key={p.id}>
-                          <TableCell className="font-medium">{p.student_name}</TableCell>
-                          <TableCell className="font-mono">{p.admission_no}</TableCell>
-                          <TableCell>{p.class}-{p.section}</TableCell>
-                          <TableCell>{p.event_name}</TableCell>
-                          <TableCell>
-                            <Badge variant={p.event_type === 'solo' ? 'default' : 'secondary'}>
-                              {p.event_type === 'solo' ? 'Solo' : 'Group'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {p.prize ? (
-                              <Badge variant={getPrizeBadgeVariant(p.prize)}>
-                                {formatPrize(p.prize)}
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Student</TableHead><TableHead>Admission No.</TableHead><TableHead>Class</TableHead><TableHead>Event</TableHead><TableHead>Type</TableHead><TableHead>Prize</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {participations.map((p) => (
+                          <TableRow key={p.id}>
+                            <TableCell className="font-medium">{p.student_name}</TableCell>
+                            <TableCell className="font-mono">{p.admission_no}</TableCell>
+                            <TableCell>{p.class}-{p.section}</TableCell>
+                            <TableCell>{p.event_name}</TableCell>
+                            <TableCell><Badge variant={p.event_type === 'solo' ? 'default' : 'secondary'}>{p.event_type === 'solo' ? 'Solo' : 'Group'}</Badge></TableCell>
+                            <TableCell>{p.prize ? (<Badge variant={getPrizeBadgeVariant(p.prize)}>{formatPrize(p.prize)}</Badge>) : (<span className="text-muted-foreground">—</span>)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
               </CardContent>
@@ -504,61 +218,35 @@ const ReportsPage: React.FC = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Award className="h-5 w-5 text-primary" />
-                      Top Prize Winners
-                    </CardTitle>
-                    <CardDescription>
-                      Students ranked by their prize achievements
-                    </CardDescription>
+                    <CardTitle className="flex items-center gap-2"><Award className="h-5 w-5 text-primary" />Top Prize Winners</CardTitle>
+                    <CardDescription>Students ranked by their prize achievements in {departmentLabel.toLowerCase()}</CardDescription>
                   </div>
                   {prizeWinners.length > 0 && (
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={handleExportWinnersPDF}>
-                        <FileText className="mr-2 h-4 w-4" />
-                        PDF
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={handleExportWinnersExcel}>
-                        <FileSpreadsheet className="mr-2 h-4 w-4" />
-                        Excel
-                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleExportWinnersPDF}><FileText className="mr-2 h-4 w-4" />PDF</Button>
+                      <Button variant="outline" size="sm" onClick={handleExportWinnersExcel}><FileSpreadsheet className="mr-2 h-4 w-4" />Excel</Button>
                     </div>
                   )}
                 </div>
               </CardHeader>
               <CardContent>
                 {prizeWinners.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No prize winners yet
-                  </div>
+                  <div className="text-center py-8 text-muted-foreground">No prize winners yet</div>
                 ) : (
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-12">Rank</TableHead>
-                        <TableHead>Student</TableHead>
-                        <TableHead>Admission No.</TableHead>
-                        <TableHead>Class</TableHead>
-                        <TableHead>Prizes</TableHead>
-                        <TableHead>Points</TableHead>
-                      </TableRow>
+                      <TableRow><TableHead className="w-12">Rank</TableHead><TableHead>Student</TableHead><TableHead>Admission No.</TableHead><TableHead>Class</TableHead><TableHead>Prizes</TableHead><TableHead>Points</TableHead></TableRow>
                     </TableHeader>
                     <TableBody>
                       {prizeWinners.map((winner, idx) => (
                         <TableRow key={winner.admission_no}>
-                          <TableCell className="font-bold">
-                            {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
-                          </TableCell>
+                          <TableCell className="font-bold">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}</TableCell>
                           <TableCell className="font-medium">{winner.student_name}</TableCell>
                           <TableCell className="font-mono">{winner.admission_no}</TableCell>
                           <TableCell>{winner.class}-{winner.section}</TableCell>
                           <TableCell>
                             <div className="flex flex-wrap gap-1">
-                              {winner.prizes.map((p, i) => (
-                                <Badge key={i} variant={getPrizeBadgeVariant(p.prize)} className="text-xs">
-                                  {formatPrize(p.prize)}
-                                </Badge>
-                              ))}
+                              {winner.prizes.map((p, i) => (<Badge key={i} variant={getPrizeBadgeVariant(p.prize)} className="text-xs">{formatPrize(p.prize)}</Badge>))}
                             </div>
                           </TableCell>
                           <TableCell className="font-semibold">{winner.total_prizes}</TableCell>
@@ -570,7 +258,6 @@ const ReportsPage: React.FC = () => {
               </CardContent>
             </Card>
           </TabsContent>
-
         </Tabs>
       </div>
     </DashboardLayout>
