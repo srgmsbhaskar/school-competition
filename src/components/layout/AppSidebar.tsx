@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Sidebar,
@@ -25,13 +25,22 @@ import {
   UserPlus,
   Upload,
   ClipboardList,
+  ArrowLeft,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+
+const departmentLabels: Record<string, string> = {
+  external: 'External Competition',
+  internal: 'Internal Competition',
+  sports: 'Sports',
+  other: 'Other Competition',
+};
 
 export const AppSidebar: React.FC = () => {
   const { role, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { department } = useParams<{ department: string }>();
 
   const handleSignOut = async () => {
     await signOut();
@@ -46,15 +55,22 @@ export const AppSidebar: React.FC = () => {
     { title: 'Settings', icon: Settings, path: '/admin/settings' },
   ];
 
-  const coordinatorMenuItems = [
-    { title: 'Dashboard', icon: Home, path: '/coordinator' },
-    { title: 'Competitions', icon: Trophy, path: '/coordinator/competitions' },
-    { title: 'Events', icon: Calendar, path: '/coordinator/events' },
-    { title: 'Assign Teachers', icon: ClipboardList, path: '/coordinator/assign-teachers' },
-    { title: 'Select Students', icon: Users, path: '/coordinator/select-students' },
-    { title: 'Prizes', icon: Award, path: '/coordinator/prizes' },
-    { title: 'Reports', icon: FileText, path: '/coordinator/reports' },
-  ];
+  const getCoordinatorMenuItems = () => {
+    if (department) {
+      return [
+        { title: '← Back to Departments', icon: ArrowLeft, path: '/coordinator' },
+        { title: 'Competitions', icon: Trophy, path: `/coordinator/${department}/competitions` },
+        { title: 'Events', icon: Calendar, path: `/coordinator/${department}/events` },
+        { title: 'Assign Teachers', icon: ClipboardList, path: `/coordinator/${department}/assign-teachers` },
+        { title: 'Select Students', icon: Users, path: `/coordinator/${department}/select-students` },
+        { title: 'Prizes', icon: Award, path: `/coordinator/${department}/prizes` },
+        { title: 'Reports', icon: FileText, path: `/coordinator/${department}/reports` },
+      ];
+    }
+    return [
+      { title: 'Dashboard', icon: Home, path: '/coordinator' },
+    ];
+  };
 
   const teacherMenuItems = [
     { title: 'Dashboard', icon: Home, path: '/teacher' },
@@ -67,7 +83,7 @@ export const AppSidebar: React.FC = () => {
       case 'admin':
         return adminMenuItems;
       case 'coordinator':
-        return coordinatorMenuItems;
+        return getCoordinatorMenuItems();
       case 'teacher':
         return teacherMenuItems;
       default:
@@ -76,6 +92,9 @@ export const AppSidebar: React.FC = () => {
   };
 
   const menuItems = getMenuItems();
+  const sidebarLabel = role === 'coordinator' && department
+    ? departmentLabels[department] || 'Coordinator'
+    : `${role?.charAt(0).toUpperCase()}${role?.slice(1)} Menu`;
 
   return (
     <Sidebar>
@@ -93,7 +112,7 @@ export const AppSidebar: React.FC = () => {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="text-sidebar-foreground/60">
-            {role?.charAt(0).toUpperCase() + role?.slice(1)} Menu
+            {sidebarLabel}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>

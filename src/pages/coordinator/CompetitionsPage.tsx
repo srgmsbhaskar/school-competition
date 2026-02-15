@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useDepartment } from '@/hooks/useDepartment';
 
 interface Competition {
   id: string;
@@ -22,7 +23,7 @@ interface Competition {
   venue: string;
   is_completed: boolean;
   created_at: string;
-  prize?: string; // competition-level grade: champion | runner_up_1 | runner_up_2
+  prize?: string;
 }
 
 const competitionGradeOptions = [
@@ -33,6 +34,7 @@ const competitionGradeOptions = [
 ];
 
 const CompetitionsPage: React.FC = () => {
+  const { department, departmentLabel } = useDepartment();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -55,11 +57,11 @@ const CompetitionsPage: React.FC = () => {
       const { data, error } = await supabase
         .from('competitions')
         .select('*')
+        .eq('department', department)
         .order('competition_date', { ascending: false });
 
       if (error) throw error;
 
-      // Fetch competition-level prizes to determine grade
       const competitionIds = (data || []).map(c => c.id);
       let prizesMap: Record<string, string> = {};
 
@@ -70,7 +72,6 @@ const CompetitionsPage: React.FC = () => {
           .in('competition_id', competitionIds);
 
         if (prizesData) {
-          // A competition's grade is the highest prize assigned to it
           const order: Record<string, number> = { champion: 1, runner_up_1: 2, runner_up_2: 3 };
           prizesData.forEach(p => {
             const existing = prizesMap[p.competition_id];
@@ -91,8 +92,9 @@ const CompetitionsPage: React.FC = () => {
   };
 
   useEffect(() => {
+    setIsLoading(true);
     fetchCompetitions();
-  }, []);
+  }, [department]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,6 +106,7 @@ const CompetitionsPage: React.FC = () => {
         competition_date: newCompetition.competition_date,
         venue: newCompetition.venue,
         created_by: user?.id,
+        department: department,
       });
 
       if (error) throw error;
@@ -140,7 +143,6 @@ const CompetitionsPage: React.FC = () => {
     setIsSaving(true);
     try {
       for (const [competitionId, grade] of Object.entries(editedGrades)) {
-        // Delete existing competition-level prizes for this competition
         await supabase
           .from('competition_prizes')
           .delete()
@@ -165,7 +167,6 @@ const CompetitionsPage: React.FC = () => {
         }
       }
 
-      // Save status changes
       for (const [competitionId, status] of Object.entries(editedStatuses)) {
         await supabase
           .from('competitions')
@@ -193,11 +194,11 @@ const CompetitionsPage: React.FC = () => {
   };
 
   return (
-    <DashboardLayout title="Competitions">
+    <DashboardLayout title={`${departmentLabel} - Competitions`}>
       <div className="space-y-6 animate-fade-in">
         <div className="flex items-center justify-between">
           <p className="text-muted-foreground">
-            Manage competitions and their events
+            Manage {departmentLabel.toLowerCase()} competitions and their events
           </p>
           <div className="flex items-center gap-2">
             {(Object.keys(editedGrades).length > 0 || Object.keys(editedStatuses).length > 0) && (
@@ -219,7 +220,7 @@ const CompetitionsPage: React.FC = () => {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Create New Competition</DialogTitle>
-                  <DialogDescription>Add a new external competition</DialogDescription>
+                  <DialogDescription>Add a new {departmentLabel.toLowerCase()} competition</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleCreate}>
                   <div className="space-y-4 py-4">
@@ -269,7 +270,7 @@ const CompetitionsPage: React.FC = () => {
         <Card>
           <CardHeader>
             <CardTitle>All Competitions</CardTitle>
-            <CardDescription>View and manage all competitions</CardDescription>
+            <CardDescription>View and manage all {departmentLabel.toLowerCase()} competitions</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -358,7 +359,7 @@ const CompetitionsPage: React.FC = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => navigate(`/coordinator/events?competition=${competition.id}`)}
+                            onClick={() => navigate(`/coordinator/${department}/events?competition=${competition.id}`)}
                           >
                             <Eye className="mr-2 h-4 w-4" />
                             Manage Events

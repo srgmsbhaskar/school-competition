@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useDepartment } from '@/hooks/useDepartment';
 
 interface Competition {
   id: string;
@@ -27,6 +28,7 @@ interface Assignment {
 }
 
 const AssignTeachers: React.FC = () => {
+  const { department, departmentLabel } = useDepartment();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -41,14 +43,12 @@ const AssignTeachers: React.FC = () => {
     setIsLoading(true);
     try {
       const [competitionsRes, profilesRes, rolesRes] = await Promise.all([
-        supabase.from('competitions').select('id, name').order('competition_date', { ascending: false }),
+        supabase.from('competitions').select('id, name').eq('department', department).order('competition_date', { ascending: false }),
         supabase.from('profiles').select('id, email, full_name'),
         supabase.from('user_roles').select('*').eq('role', 'teacher'),
       ]);
 
       setCompetitions(competitionsRes.data || []);
-      
-      // Filter only teachers
       const teacherIds = (rolesRes.data || []).map((r) => r.user_id);
       const teacherProfiles = (profilesRes.data || []).filter((p) => teacherIds.includes(p.id));
       setTeachers(teacherProfiles);
@@ -58,16 +58,11 @@ const AssignTeachers: React.FC = () => {
           .from('teacher_assignments')
           .select('*')
           .eq('competition_id', selectedCompetition);
-
         setAssignments(assignmentsData || []);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load data',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to load data', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -75,7 +70,7 @@ const AssignTeachers: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, [selectedCompetition]);
+  }, [selectedCompetition, department]);
 
   const getAssignedTeacher = (classNum: number): string => {
     const assignment = assignments.find((a) => a.class === classNum);
@@ -86,88 +81,46 @@ const AssignTeachers: React.FC = () => {
     setAssignments((prev) => {
       const existing = prev.find((a) => a.class === classNum);
       if (existing) {
-        if (!teacherId) {
-          return prev.filter((a) => a.class !== classNum);
-        }
-        return prev.map((a) =>
-          a.class === classNum ? { ...a, teacher_id: teacherId } : a
-        );
+        if (!teacherId) return prev.filter((a) => a.class !== classNum);
+        return prev.map((a) => a.class === classNum ? { ...a, teacher_id: teacherId } : a);
       }
-      if (teacherId) {
-        return [...prev, { teacher_id: teacherId, competition_id: selectedCompetition, class: classNum }];
-      }
+      if (teacherId) return [...prev, { teacher_id: teacherId, competition_id: selectedCompetition, class: classNum }];
       return prev;
     });
   };
 
   const handleSave = async () => {
     if (!selectedCompetition) return;
-    
     setIsSaving(true);
     try {
-      // Delete existing assignments
-      await supabase
-        .from('teacher_assignments')
-        .delete()
-        .eq('competition_id', selectedCompetition);
-
-      // Insert new assignments
+      await supabase.from('teacher_assignments').delete().eq('competition_id', selectedCompetition);
       if (assignments.length > 0) {
-        const { error } = await supabase
-          .from('teacher_assignments')
-          .insert(assignments);
-
+        const { error } = await supabase.from('teacher_assignments').insert(assignments);
         if (error) throw error;
       }
-
-      toast({
-        title: 'Success',
-        description: 'Teacher assignments saved successfully',
-      });
+      toast({ title: 'Success', description: 'Teacher assignments saved successfully' });
     } catch (error: any) {
-      console.error('Error saving assignments:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to save assignments',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: error.message || 'Failed to save assignments', variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <DashboardLayout title="Assign Teachers">
+    <DashboardLayout title={`${departmentLabel} - Assign Teachers`}>
       <div className="space-y-6 animate-fade-in">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="w-64">
             <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select competition" />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Select competition" /></SelectTrigger>
               <SelectContent>
-                {competitions.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
+                {competitions.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
               </SelectContent>
             </Select>
           </div>
-          
           {selectedCompetition && (
             <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Assignments
-                </>
-              )}
+              {isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>) : (<><Save className="mr-2 h-4 w-4" />Save Assignments</>)}
             </Button>
           )}
         </div>
@@ -175,23 +128,15 @@ const AssignTeachers: React.FC = () => {
         <Card>
           <CardHeader>
             <CardTitle>Teacher Assignments</CardTitle>
-            <CardDescription>
-              Assign teachers to manage student selection for each class
-            </CardDescription>
+            <CardDescription>Assign teachers to manage student selection for each class</CardDescription>
           </CardHeader>
           <CardContent>
             {!selectedCompetition ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Please select a competition to assign teachers
-              </div>
+              <div className="text-center py-8 text-muted-foreground">Please select a competition to assign teachers</div>
             ) : isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
+              <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : teachers.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No teachers found. Please create teacher accounts first.
-              </div>
+              <div className="text-center py-8 text-muted-foreground">No teachers found. Please create teacher accounts first.</div>
             ) : (
               <Table>
                 <TableHeader>
@@ -203,24 +148,13 @@ const AssignTeachers: React.FC = () => {
                 <TableBody>
                   {classes.map((classNum) => (
                     <TableRow key={classNum}>
+                      <TableCell><Badge variant="outline">Class {classNum}</Badge></TableCell>
                       <TableCell>
-                        <Badge variant="outline">Class {classNum}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={getAssignedTeacher(classNum) || "none"}
-                          onValueChange={(value) => handleAssignmentChange(classNum, value === "none" ? "" : value)}
-                        >
-                          <SelectTrigger className="w-64">
-                            <SelectValue placeholder="Select teacher" />
-                          </SelectTrigger>
+                        <Select value={getAssignedTeacher(classNum) || "none"} onValueChange={(value) => handleAssignmentChange(classNum, value === "none" ? "" : value)}>
+                          <SelectTrigger className="w-64"><SelectValue placeholder="Select teacher" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">No teacher assigned</SelectItem>
-                            {teachers.map((teacher) => (
-                              <SelectItem key={teacher.id} value={teacher.id}>
-                                {teacher.full_name}
-                              </SelectItem>
-                            ))}
+                            {teachers.map((teacher) => (<SelectItem key={teacher.id} value={teacher.id}>{teacher.full_name}</SelectItem>))}
                           </SelectContent>
                         </Select>
                       </TableCell>

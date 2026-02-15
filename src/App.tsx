@@ -52,6 +52,12 @@ const RoleBasedRedirect = () => {
   }
 };
 
+const CoordinatorRoute = ({ children }: { children: React.ReactNode }) => (
+  <ProtectedRoute allowedRoles={['coordinator', 'admin']}>
+    {children}
+  </ProtectedRoute>
+);
+
 const AppRoutes = () => {
   return (
     <Routes>
@@ -64,85 +70,27 @@ const AppRoutes = () => {
       } />
 
       {/* Admin Routes */}
-      <Route path="/admin" element={
-        <ProtectedRoute allowedRoles={['admin']}>
-          <AdminDashboard />
-        </ProtectedRoute>
-      } />
-      <Route path="/admin/users" element={
-        <ProtectedRoute allowedRoles={['admin']}>
-          <UserManagement />
-        </ProtectedRoute>
-      } />
-      <Route path="/admin/students" element={
-        <ProtectedRoute allowedRoles={['admin']}>
-          <StudentDatabase />
-        </ProtectedRoute>
-      } />
-      <Route path="/admin/upload" element={
-        <ProtectedRoute allowedRoles={['admin']}>
-          <UploadStudents />
-        </ProtectedRoute>
-      } />
-      <Route path="/admin/settings" element={
-        <ProtectedRoute allowedRoles={['admin']}>
-          <AdminSettings />
-        </ProtectedRoute>
-      } />
+      <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+      <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['admin']}><UserManagement /></ProtectedRoute>} />
+      <Route path="/admin/students" element={<ProtectedRoute allowedRoles={['admin']}><StudentDatabase /></ProtectedRoute>} />
+      <Route path="/admin/upload" element={<ProtectedRoute allowedRoles={['admin']}><UploadStudents /></ProtectedRoute>} />
+      <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettings /></ProtectedRoute>} />
 
-      {/* Coordinator Routes */}
-      <Route path="/coordinator" element={
-        <ProtectedRoute allowedRoles={['coordinator', 'admin']}>
-          <CoordinatorDashboard />
-        </ProtectedRoute>
-      } />
-      <Route path="/coordinator/competitions" element={
-        <ProtectedRoute allowedRoles={['coordinator', 'admin']}>
-          <CompetitionsPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/coordinator/events" element={
-        <ProtectedRoute allowedRoles={['coordinator', 'admin']}>
-          <EventsPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/coordinator/assign-teachers" element={
-        <ProtectedRoute allowedRoles={['coordinator', 'admin']}>
-          <AssignTeachers />
-        </ProtectedRoute>
-      } />
-      <Route path="/coordinator/prizes" element={
-        <ProtectedRoute allowedRoles={['coordinator', 'admin']}>
-          <PrizesPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/coordinator/reports" element={
-        <ProtectedRoute allowedRoles={['coordinator', 'admin']}>
-          <ReportsPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/coordinator/select-students" element={
-        <ProtectedRoute allowedRoles={['coordinator', 'admin']}>
-          <CoordinatorSelectStudents />
-        </ProtectedRoute>
-      } />
+      {/* Coordinator Dashboard */}
+      <Route path="/coordinator" element={<CoordinatorRoute><CoordinatorDashboard /></CoordinatorRoute>} />
+
+      {/* Coordinator Department Routes */}
+      <Route path="/coordinator/:department/competitions" element={<CoordinatorRoute><CompetitionsPage /></CoordinatorRoute>} />
+      <Route path="/coordinator/:department/events" element={<CoordinatorRoute><EventsPage /></CoordinatorRoute>} />
+      <Route path="/coordinator/:department/assign-teachers" element={<CoordinatorRoute><AssignTeachers /></CoordinatorRoute>} />
+      <Route path="/coordinator/:department/prizes" element={<CoordinatorRoute><PrizesPage /></CoordinatorRoute>} />
+      <Route path="/coordinator/:department/reports" element={<CoordinatorRoute><ReportsPage /></CoordinatorRoute>} />
+      <Route path="/coordinator/:department/select-students" element={<CoordinatorRoute><CoordinatorSelectStudents /></CoordinatorRoute>} />
 
       {/* Teacher Routes */}
-      <Route path="/teacher" element={
-        <ProtectedRoute allowedRoles={['teacher']}>
-          <TeacherDashboard />
-        </ProtectedRoute>
-      } />
-      <Route path="/teacher/competitions" element={
-        <ProtectedRoute allowedRoles={['teacher']}>
-          <TeacherCompetitions />
-        </ProtectedRoute>
-      } />
-      <Route path="/teacher/select-students" element={
-        <ProtectedRoute allowedRoles={['teacher']}>
-          <SelectStudents />
-        </ProtectedRoute>
-      } />
+      <Route path="/teacher" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherDashboard /></ProtectedRoute>} />
+      <Route path="/teacher/competitions" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherCompetitions /></ProtectedRoute>} />
+      <Route path="/teacher/select-students" element={<ProtectedRoute allowedRoles={['teacher']}><SelectStudents /></ProtectedRoute>} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>

@@ -15,6 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDepartment } from '@/hooks/useDepartment';
 
 interface Competition {
   id: string;
@@ -37,6 +38,7 @@ interface Event {
 }
 
 const EventsPage: React.FC = () => {
+  const { department, departmentLabel } = useDepartment();
   const [searchParams] = useSearchParams();
   const competitionId = searchParams.get('competition');
   
@@ -62,7 +64,7 @@ const EventsPage: React.FC = () => {
     setIsLoading(true);
     try {
       const [competitionsRes, categoriesRes] = await Promise.all([
-        supabase.from('competitions').select('id, name').order('competition_date', { ascending: false }),
+        supabase.from('competitions').select('id, name').eq('department', department).order('competition_date', { ascending: false }),
         supabase.from('categories').select('*'),
       ]);
 
@@ -90,11 +92,7 @@ const EventsPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load data',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to load data', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -102,22 +100,17 @@ const EventsPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, [selectedCompetition]);
+  }, [selectedCompetition, department]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCompetition) {
-      toast({
-        title: 'Error',
-        description: 'Please select a competition first',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Please select a competition first', variant: 'destructive' });
       return;
     }
 
     setIsCreating(true);
     try {
-      // Create the event with event_type
       const { data: eventData, error: eventError } = await supabase
         .from('events')
         .insert({
@@ -131,35 +124,21 @@ const EventsPage: React.FC = () => {
 
       if (eventError) throw eventError;
 
-      // Create event classes
       if (newEvent.classes.length > 0) {
         const eventClasses = newEvent.classes.map((c) => ({
           event_id: eventData.id,
           class: c,
         }));
-
-        const { error: classesError } = await supabase
-          .from('event_classes')
-          .insert(eventClasses);
-
+        const { error: classesError } = await supabase.from('event_classes').insert(eventClasses);
         if (classesError) throw classesError;
       }
 
-      toast({
-        title: 'Success',
-        description: 'Event created successfully',
-      });
-
+      toast({ title: 'Success', description: 'Event created successfully' });
       setIsDialogOpen(false);
       setNewEvent({ name: '', category_id: '', event_type: 'solo', classes: [] });
       fetchData();
     } catch (error: any) {
-      console.error('Error creating event:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to create event',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: error.message || 'Failed to create event', variant: 'destructive' });
     } finally {
       setIsCreating(false);
     }
@@ -181,16 +160,12 @@ const EventsPage: React.FC = () => {
       toast({ title: 'Event deleted' });
       fetchData();
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
     }
   };
 
   return (
-    <DashboardLayout title="Events">
+    <DashboardLayout title={`${departmentLabel} - Events`}>
       <div className="space-y-6 animate-fade-in">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="w-64">
@@ -200,9 +175,7 @@ const EventsPage: React.FC = () => {
               </SelectTrigger>
               <SelectContent>
                 {competitions.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -211,39 +184,23 @@ const EventsPage: React.FC = () => {
           {selectedCompetition && events.length < 30 && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Event
-                </Button>
+                <Button><Plus className="mr-2 h-4 w-4" />Add Event</Button>
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>Add New Event</DialogTitle>
-                  <DialogDescription>
-                    Create a new event for this competition (max 30 events)
-                  </DialogDescription>
+                  <DialogDescription>Create a new event for this competition (max 30 events)</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleCreate}>
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
                       <Label htmlFor="eventName">Event Name</Label>
-                      <Input
-                        id="eventName"
-                        value={newEvent.name}
-                        onChange={(e) => setNewEvent({ ...newEvent, name: e.target.value })}
-                        placeholder="Enter event name"
-                        required
-                      />
+                      <Input id="eventName" value={newEvent.name} onChange={(e) => setNewEvent({ ...newEvent, name: e.target.value })} placeholder="Enter event name" required />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="eventType">Event Type</Label>
-                      <Select
-                        value={newEvent.event_type}
-                        onValueChange={(value: 'solo' | 'group') => setNewEvent({ ...newEvent, event_type: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
+                      <Select value={newEvent.event_type} onValueChange={(value: 'solo' | 'group') => setNewEvent({ ...newEvent, event_type: value })}>
+                        <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="solo">Solo</SelectItem>
                           <SelectItem value="group">Group</SelectItem>
@@ -252,18 +209,11 @@ const EventsPage: React.FC = () => {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="category">Category</Label>
-                      <Select
-                        value={newEvent.category_id}
-                        onValueChange={(value) => setNewEvent({ ...newEvent, category_id: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
+                      <Select value={newEvent.category_id} onValueChange={(value) => setNewEvent({ ...newEvent, category_id: value })}>
+                        <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                         <SelectContent>
                           {categories.map((cat) => (
-                            <SelectItem key={cat.id} value={cat.id}>
-                              {cat.name}
-                            </SelectItem>
+                            <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -273,32 +223,17 @@ const EventsPage: React.FC = () => {
                       <div className="grid grid-cols-4 gap-2">
                         {allClasses.map((c) => (
                           <div key={c} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`class-${c}`}
-                              checked={newEvent.classes.includes(c)}
-                              onCheckedChange={() => handleClassToggle(c)}
-                            />
-                            <Label htmlFor={`class-${c}`} className="text-sm">
-                              Class {c}
-                            </Label>
+                            <Checkbox id={`class-${c}`} checked={newEvent.classes.includes(c)} onCheckedChange={() => handleClassToggle(c)} />
+                            <Label htmlFor={`class-${c}`} className="text-sm">Class {c}</Label>
                           </div>
                         ))}
                       </div>
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                      Cancel
-                    </Button>
+                    <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
                     <Button type="submit" disabled={isCreating}>
-                      {isCreating ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Creating...
-                        </>
-                      ) : (
-                        'Create Event'
-                      )}
+                      {isCreating ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</>) : 'Create Event'}
                     </Button>
                   </DialogFooter>
                 </form>
@@ -310,25 +245,15 @@ const EventsPage: React.FC = () => {
         <Card>
           <CardHeader>
             <CardTitle>Events {events.length > 0 && `(${events.length}/30)`}</CardTitle>
-            <CardDescription>
-              {selectedCompetition 
-                ? 'Events for this competition' 
-                : 'Select a competition to view events'}
-            </CardDescription>
+            <CardDescription>{selectedCompetition ? 'Events for this competition' : 'Select a competition to view events'}</CardDescription>
           </CardHeader>
           <CardContent>
             {!selectedCompetition ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Please select a competition to view and manage events
-              </div>
+              <div className="text-center py-8 text-muted-foreground">Please select a competition to view and manage events</div>
             ) : isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
+              <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : events.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No events found. Add your first event.
-              </div>
+              <div className="text-center py-8 text-muted-foreground">No events found. Add your first event.</div>
             ) : (
               <Table>
                 <TableHeader>
@@ -350,19 +275,13 @@ const EventsPage: React.FC = () => {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {event.category?.name ? (
-                          <Badge variant="outline">{event.category.name}</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                        {event.category?.name ? (<Badge variant="outline">{event.category.name}</Badge>) : (<span className="text-muted-foreground">—</span>)}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {event.classes.length > 0 ? (
                             event.classes.sort((a, b) => a - b).map((c) => (
-                              <Badge key={c} variant="outline" className="text-xs">
-                                {c}
-                              </Badge>
+                              <Badge key={c} variant="outline" className="text-xs">{c}</Badge>
                             ))
                           ) : (
                             <span className="text-muted-foreground">All classes</span>
@@ -373,22 +292,16 @@ const EventsPage: React.FC = () => {
                         {canManage && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
+                              <Button variant="ghost" size="sm"><Trash2 className="h-4 w-4 text-destructive" /></Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Delete Event?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This will permanently delete "{event.name}" and all associated participations.
-                                </AlertDialogDescription>
+                                <AlertDialogDescription>This will permanently delete "{event.name}" and all associated participations.</AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDeleteEvent(event.id)}>
-                                  Delete
-                                </AlertDialogAction>
+                                <AlertDialogAction onClick={() => handleDeleteEvent(event.id)}>Delete</AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
