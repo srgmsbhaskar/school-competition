@@ -8,6 +8,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 // Pages
 import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import ChangePassword from "./pages/ChangePassword";
 import NotFound from "./pages/NotFound";
 
 // Admin Pages
@@ -34,7 +36,7 @@ import SelectStudents from "./pages/teacher/SelectStudents";
 const queryClient = new QueryClient();
 
 const RoleBasedRedirect = () => {
-  const { role, isLoading } = useAuth();
+  const { role, assignedDepartment, isLoading } = useAuth();
 
   if (isLoading) {
     return null;
@@ -45,6 +47,8 @@ const RoleBasedRedirect = () => {
       return <Navigate to="/admin" replace />;
     case 'coordinator':
       return <Navigate to="/coordinator" replace />;
+    case 'department_incharge':
+      return <Navigate to={`/coordinator/${assignedDepartment || 'external'}/competitions`} replace />;
     case 'teacher':
       return <Navigate to="/teacher" replace />;
     default:
@@ -53,7 +57,7 @@ const RoleBasedRedirect = () => {
 };
 
 const CoordinatorRoute = ({ children }: { children: React.ReactNode }) => (
-  <ProtectedRoute allowedRoles={['coordinator', 'admin']}>
+  <ProtectedRoute allowedRoles={['coordinator', 'admin', 'department_incharge']}>
     {children}
   </ProtectedRoute>
 );
@@ -62,6 +66,7 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
       
       <Route path="/" element={
         <ProtectedRoute>
@@ -91,6 +96,13 @@ const AppRoutes = () => {
       <Route path="/teacher" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherDashboard /></ProtectedRoute>} />
       <Route path="/teacher/competitions" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherCompetitions /></ProtectedRoute>} />
       <Route path="/teacher/select-students" element={<ProtectedRoute allowedRoles={['teacher']}><SelectStudents /></ProtectedRoute>} />
+
+      {/* Change Password - for coordinator, department_incharge, teacher */}
+      <Route path="/change-password" element={
+        <ProtectedRoute allowedRoles={['coordinator', 'department_incharge', 'teacher']}>
+          <ChangePassword />
+        </ProtectedRoute>
+      } />
 
       <Route path="*" element={<NotFound />} />
     </Routes>

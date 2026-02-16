@@ -15,7 +15,6 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     
-    // Verify the caller is an admin
     const authHeader = req.headers.get('Authorization')
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
@@ -36,7 +35,6 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Check if caller is admin
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     })
@@ -54,7 +52,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    const { action, userId, fullName, role } = await req.json()
+    const { action, userId, fullName, role, department } = await req.json()
 
     if (!userId) {
       return new Response(
@@ -63,7 +61,6 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Prevent admin from deleting/modifying themselves
     if (userId === claims.user.id) {
       return new Response(
         JSON.stringify({ error: 'Cannot modify your own account' }),
@@ -72,13 +69,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'delete') {
-      // Delete from user_roles first
+      await supabaseAdmin.from('department_assignments').delete().eq('user_id', userId)
       await supabaseAdmin.from('user_roles').delete().eq('user_id', userId)
-      
-      // Delete from profiles
       await supabaseAdmin.from('profiles').delete().eq('id', userId)
       
-      // Delete from auth.users
       const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
       
       if (deleteError) {
@@ -102,14 +96,13 @@ Deno.serve(async (req) => {
         )
       }
 
-      if (!['coordinator', 'teacher'].includes(role)) {
+      if (!['coordinator', 'teacher', 'department_incharge'].includes(role)) {
         return new Response(
           JSON.stringify({ error: 'Invalid role' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
-      // Update profile
       const { error: profileError } = await supabaseAdmin
         .from('profiles')
         .update({ full_name: fullName })
@@ -122,7 +115,6 @@ Deno.serve(async (req) => {
         )
       }
 
-      // Update role
       const { error: roleError } = await supabaseAdmin
         .from('user_roles')
         .update({ role })
@@ -133,6 +125,17 @@ Deno.serve(async (req) => {
           JSON.stringify({ error: roleError.message }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
+      }
+
+      // Handle department assignment
+      if (role === 'department_incharge' && department) {
+        await supabaseAdmin.from('department_assignments').delete().eq('user_id', userId)
+        await supabaseAdmin.from('department_assignments').insert({
+          user_id: userId,
+          department
+        })
+      } else if (role !== 'department_incharge') {
+        await supabaseAdmin.from('department_assignments').delete().eq('user_id', userId)
       }
 
       return new Response(

@@ -2,12 +2,13 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
-type AppRole = 'admin' | 'coordinator' | 'teacher';
+type AppRole = 'admin' | 'coordinator' | 'teacher' | 'department_incharge';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   role: AppRole | null;
+  assignedDepartment: string | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -27,6 +28,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
+  const [assignedDepartment, setAssignedDepartment] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchUserRole = async (userId: string) => {
@@ -49,28 +51,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const fetchDepartmentAssignment = async (userId: string) => {
+    try {
+      const { data } = await (supabase as any)
+        .from('department_assignments')
+        .select('department')
+        .eq('user_id', userId)
+        .single();
+
+      return data?.department || null;
+    } catch {
+      return null;
+    }
+  };
+
   useEffect(() => {
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          // Defer role fetching to avoid blocking
           setTimeout(async () => {
             const userRole = await fetchUserRole(session.user.id);
             setRole(userRole);
+
+            if (userRole === 'department_incharge') {
+              const dept = await fetchDepartmentAssignment(session.user.id);
+              setAssignedDepartment(dept);
+            } else {
+              setAssignedDepartment(null);
+            }
+
             setIsLoading(false);
           }, 0);
         } else {
           setRole(null);
+          setAssignedDepartment(null);
           setIsLoading(false);
         }
       }
     );
 
-    // THEN get the initial session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -78,6 +100,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session?.user) {
         const userRole = await fetchUserRole(session.user.id);
         setRole(userRole);
+
+        if (userRole === 'department_incharge') {
+          const dept = await fetchDepartmentAssignment(session.user.id);
+          setAssignedDepartment(dept);
+        }
       }
       setIsLoading(false);
     });
@@ -86,10 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error ? new Error(error.message) : null };
   };
 
@@ -98,10 +122,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setSession(null);
     setRole(null);
+    setAssignedDepartment(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, isLoading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, role, assignedDepartment, isLoading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

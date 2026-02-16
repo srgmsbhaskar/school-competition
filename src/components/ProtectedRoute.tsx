@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 
-type AppRole = 'admin' | 'coordinator' | 'teacher';
+type AppRole = 'admin' | 'coordinator' | 'teacher' | 'department_incharge';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -14,7 +14,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children, 
   allowedRoles 
 }) => {
-  const { user, role, isLoading } = useAuth();
+  const { user, role, assignedDepartment, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -32,12 +32,13 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (allowedRoles && role && !allowedRoles.includes(role)) {
-    // Redirect to appropriate dashboard based on role
     switch (role) {
       case 'admin':
         return <Navigate to="/admin" replace />;
       case 'coordinator':
         return <Navigate to="/coordinator" replace />;
+      case 'department_incharge':
+        return <Navigate to={`/coordinator/${assignedDepartment || 'external'}/competitions`} replace />;
       case 'teacher':
         return <Navigate to="/teacher" replace />;
       default:

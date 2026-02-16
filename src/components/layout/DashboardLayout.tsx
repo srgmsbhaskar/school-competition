@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { AppSidebar } from './AppSidebar';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
+import { useParams } from 'react-router-dom';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -11,11 +12,14 @@ interface DashboardLayoutProps {
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) => {
   const { user } = useAuth();
+  const { department } = useParams<{ department: string }>();
+
+  const deptClass = department ? `dept-${department} dept-watermark` : '';
 
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className={deptClass}>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border bg-card px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
@@ -26,7 +30,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
             </span>
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-6 relative z-10">
           {children}
         </main>
       </SidebarInset>

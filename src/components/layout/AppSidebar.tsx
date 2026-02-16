@@ -26,6 +26,7 @@ import {
   Upload,
   ClipboardList,
   ArrowLeft,
+  Lock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -47,6 +48,8 @@ export const AppSidebar: React.FC = () => {
     navigate('/login');
   };
 
+  const canChangePassword = role === 'coordinator' || role === 'department_incharge' || role === 'teacher';
+
   const adminMenuItems = [
     { title: 'Dashboard', icon: Home, path: '/admin' },
     { title: 'User Management', icon: UserPlus, path: '/admin/users' },
@@ -57,15 +60,20 @@ export const AppSidebar: React.FC = () => {
 
   const getCoordinatorMenuItems = () => {
     if (department) {
-      return [
-        { title: '← Back to Departments', icon: ArrowLeft, path: '/coordinator' },
+      const backPath = role === 'department_incharge' ? undefined : '/coordinator';
+      const items = [];
+      if (backPath) {
+        items.push({ title: '← Back to Departments', icon: ArrowLeft, path: backPath });
+      }
+      items.push(
         { title: 'Competitions', icon: Trophy, path: `/coordinator/${department}/competitions` },
         { title: 'Events', icon: Calendar, path: `/coordinator/${department}/events` },
         { title: 'Assign Teachers', icon: ClipboardList, path: `/coordinator/${department}/assign-teachers` },
         { title: 'Select Students', icon: Users, path: `/coordinator/${department}/select-students` },
         { title: 'Prizes', icon: Award, path: `/coordinator/${department}/prizes` },
         { title: 'Reports', icon: FileText, path: `/coordinator/${department}/reports` },
-      ];
+      );
+      return items;
     }
     return [
       { title: 'Dashboard', icon: Home, path: '/coordinator' },
@@ -83,6 +91,7 @@ export const AppSidebar: React.FC = () => {
       case 'admin':
         return adminMenuItems;
       case 'coordinator':
+      case 'department_incharge':
         return getCoordinatorMenuItems();
       case 'teacher':
         return teacherMenuItems;
@@ -92,9 +101,12 @@ export const AppSidebar: React.FC = () => {
   };
 
   const menuItems = getMenuItems();
-  const sidebarLabel = role === 'coordinator' && department
-    ? departmentLabels[department] || 'Coordinator'
-    : `${role?.charAt(0).toUpperCase()}${role?.slice(1)} Menu`;
+  const getRoleLabel = () => {
+    if (role === 'department_incharge' && department) return departmentLabels[department] || 'Dept In-Charge';
+    if (role === 'coordinator' && department) return departmentLabels[department] || 'Coordinator';
+    if (role === 'department_incharge') return 'Dept In-Charge';
+    return `${role?.charAt(0).toUpperCase()}${role?.slice(1)} Menu`;
+  };
 
   return (
     <Sidebar>
@@ -112,7 +124,7 @@ export const AppSidebar: React.FC = () => {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="text-sidebar-foreground/60">
-            {sidebarLabel}
+            {getRoleLabel()}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -132,7 +144,17 @@ export const AppSidebar: React.FC = () => {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border p-4">
+      <SidebarFooter className="border-t border-sidebar-border p-4 space-y-2">
+        {canChangePassword && (
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            onClick={() => navigate('/change-password')}
+          >
+            <Lock className="mr-2 h-4 w-4" />
+            Change Password
+          </Button>
+        )}
         <Button
           variant="ghost"
           className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
