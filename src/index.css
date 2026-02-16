@@ -173,6 +173,26 @@
     background-image: var(--gradient-hero);
   }
 
+  /* Department color themes */
+  .dept-external { --dept-color: 220 60% 25%; --dept-bg: 220 60% 95%; }
+  .dept-internal { --dept-color: 270 55% 40%; --dept-bg: 270 55% 95%; }
+  .dept-sports { --dept-color: 145 55% 35%; --dept-bg: 145 55% 95%; }
+  .dept-other { --dept-color: 30 80% 45%; --dept-bg: 30 80% 95%; }
+
+  .dept-watermark {
+    position: relative;
+  }
+  .dept-watermark::before {
+    content: '🏆';
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    font-size: 12rem;
+    opacity: 0.04;
+    pointer-events: none;
+    z-index: 0;
+  }
+
   .animate-fade-in {
     animation: fadeIn 0.3s ease-out;
   }

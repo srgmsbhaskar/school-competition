@@ -15,7 +15,6 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     
-    // Verify the caller is an admin
     const authHeader = req.headers.get('Authorization')
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
@@ -36,7 +35,6 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Check if caller is admin
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     })
@@ -54,8 +52,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Get request body
-    const { email, password, fullName, role } = await req.json()
+    const { email, password, fullName, role, department } = await req.json()
 
     if (!email || !password || !fullName || !role) {
       return new Response(
@@ -64,14 +61,20 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (!['coordinator', 'teacher'].includes(role)) {
+    if (!['coordinator', 'teacher', 'department_incharge'].includes(role)) {
       return new Response(
         JSON.stringify({ error: 'Invalid role' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Create user with admin client
+    if (role === 'department_incharge' && !department) {
+      return new Response(
+        JSON.stringify({ error: 'Department is required for department in-charge role' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -87,18 +90,24 @@ Deno.serve(async (req) => {
 
     const userId = authData.user.id
 
-    // Create profile
     await supabaseAdmin.from('profiles').insert({
       id: userId,
       email,
       full_name: fullName
     })
 
-    // Assign role
     await supabaseAdmin.from('user_roles').insert({
       user_id: userId,
       role
     })
+
+    // If department_incharge, assign department
+    if (role === 'department_incharge' && department) {
+      await supabaseAdmin.from('department_assignments').insert({
+        user_id: userId,
+        department
+      })
+    }
 
     return new Response(
       JSON.stringify({ 

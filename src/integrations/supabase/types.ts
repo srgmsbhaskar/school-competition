@@ -35,6 +35,36 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          details: string | null
+          id: string
+          ip_address: string | null
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: string | null
+          id?: string
+          ip_address?: string | null
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: string | null
+          id?: string
+          ip_address?: string | null
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string | null
@@ -137,6 +167,27 @@ export type Database = {
         }
         Relationships: []
       }
+      department_assignments: {
+        Row: {
+          created_at: string | null
+          department: Database["public"]["Enums"]["competition_department"]
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          department: Database["public"]["Enums"]["competition_department"]
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          department?: Database["public"]["Enums"]["competition_department"]
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       event_classes: {
         Row: {
           class: number
@@ -234,6 +285,7 @@ export type Database = {
       }
       student_participations: {
         Row: {
+          certificate_url: string | null
           competition_id: string
           created_at: string | null
           event_id: string
@@ -245,6 +297,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          certificate_url?: string | null
           competition_id: string
           created_at?: string | null
           event_id: string
@@ -256,6 +309,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          certificate_url?: string | null
           competition_id?: string
           created_at?: string | null
           event_id?: string
@@ -395,9 +449,16 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_coordinator: { Args: { _user_id: string }; Returns: boolean }
+      is_department_incharge: {
+        Args: {
+          _department: Database["public"]["Enums"]["competition_department"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      app_role: "admin" | "coordinator" | "teacher"
+      app_role: "admin" | "coordinator" | "teacher" | "department_incharge"
       competition_department: "external" | "internal" | "sports" | "other"
       event_type: "solo" | "group"
       prize_type:
@@ -537,7 +598,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "coordinator", "teacher"],
+      app_role: ["admin", "coordinator", "teacher", "department_incharge"],
       competition_department: ["external", "internal", "sports", "other"],
       event_type: ["solo", "group"],
       prize_type: [

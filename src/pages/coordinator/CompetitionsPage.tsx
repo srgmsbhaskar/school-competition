@@ -50,7 +50,7 @@ const CompetitionsPage: React.FC = () => {
   const { toast } = useToast();
   const { user, role } = useAuth();
   const navigate = useNavigate();
-  const canManage = role === 'admin' || role === 'coordinator';
+  const canManage = role === 'admin' || role === 'coordinator' || role === 'department_incharge';
 
   const fetchCompetitions = async () => {
     try {

@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Trophy, Dumbbell, Globe, MoreHorizontal } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DepartmentCard {
   key: string;
@@ -14,21 +15,36 @@ interface DepartmentCard {
   count: number;
 }
 
+const allDepartments = [
+  { key: 'external', title: 'External Competition', description: 'Manage competitions organized by external bodies', icon: Globe },
+  { key: 'internal', title: 'Internal Competition', description: 'Manage school-level internal competitions', icon: Trophy },
+  { key: 'sports', title: 'Sports', description: 'Manage sports events and competitions', icon: Dumbbell },
+  { key: 'other', title: 'Other Competition', description: 'Manage other types of competitions', icon: MoreHorizontal },
+];
+
+const departmentColors: Record<string, string> = {
+  external: 'bg-blue-500/10 text-blue-700',
+  internal: 'bg-purple-500/10 text-purple-700',
+  sports: 'bg-emerald-500/10 text-emerald-700',
+  other: 'bg-amber-500/10 text-amber-700',
+};
+
 const CoordinatorDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { role, assignedDepartment } = useAuth();
   const [counts, setCounts] = useState<Record<string, number>>({
-    external: 0,
-    internal: 0,
-    sports: 0,
-    other: 0,
+    external: 0, internal: 0, sports: 0, other: 0,
   });
 
   useEffect(() => {
-    const fetchCounts = async () => {
-      const { data } = await supabase
-        .from('competitions')
-        .select('department');
+    // If department_incharge, redirect to their department directly
+    if (role === 'department_incharge' && assignedDepartment) {
+      navigate(`/coordinator/${assignedDepartment}/competitions`, { replace: true });
+      return;
+    }
 
+    const fetchCounts = async () => {
+      const { data } = await supabase.from('competitions').select('department');
       if (data) {
         const c: Record<string, number> = { external: 0, internal: 0, sports: 0, other: 0 };
         data.forEach((row: any) => {
@@ -38,42 +54,13 @@ const CoordinatorDashboard: React.FC = () => {
       }
     };
     fetchCounts();
-  }, []);
+  }, [role, assignedDepartment, navigate]);
 
-  const departments: DepartmentCard[] = [
-    {
-      key: 'external',
-      title: 'External Competition',
-      description: 'Manage competitions organized by external bodies',
-      icon: Globe,
-      path: '/coordinator/external/competitions',
-      count: counts.external,
-    },
-    {
-      key: 'internal',
-      title: 'Internal Competition',
-      description: 'Manage school-level internal competitions',
-      icon: Trophy,
-      path: '/coordinator/internal/competitions',
-      count: counts.internal,
-    },
-    {
-      key: 'sports',
-      title: 'Sports',
-      description: 'Manage sports events and competitions',
-      icon: Dumbbell,
-      path: '/coordinator/sports/competitions',
-      count: counts.sports,
-    },
-    {
-      key: 'other',
-      title: 'Other Competition',
-      description: 'Manage other types of competitions',
-      icon: MoreHorizontal,
-      path: '/coordinator/other/competitions',
-      count: counts.other,
-    },
-  ];
+  const departments: DepartmentCard[] = allDepartments.map((dept) => ({
+    ...dept,
+    path: `/coordinator/${dept.key}/competitions`,
+    count: counts[dept.key],
+  }));
 
   return (
     <DashboardLayout title="Coordinator Dashboard">
@@ -88,13 +75,13 @@ const CoordinatorDashboard: React.FC = () => {
           {departments.map((dept) => (
             <Card
               key={dept.key}
-              className="cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all"
+              className="cursor-pointer hover:shadow-lg transition-all border-2 hover:border-primary/30"
               onClick={() => navigate(dept.path)}
             >
               <CardHeader>
                 <div className="flex items-center gap-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10">
-                    <dept.icon className="h-7 w-7 text-primary" />
+                  <div className={`flex h-14 w-14 items-center justify-center rounded-xl ${departmentColors[dept.key]}`}>
+                    <dept.icon className="h-7 w-7" />
                   </div>
                   <div className="flex-1">
                     <CardTitle className="text-lg">{dept.title}</CardTitle>

@@ -1,68 +1,63 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Trophy, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { logAudit } from '@/lib/auditLog';
 
-const Login: React.FC = () => {
+const Signup: React.FC = () => {
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, user, role, assignedDepartment, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-
-  useEffect(() => {
-    if (!authLoading && user && role) {
-      switch (role) {
-        case 'admin':
-          navigate('/admin', { replace: true });
-          break;
-        case 'coordinator':
-          navigate('/coordinator', { replace: true });
-          break;
-        case 'department_incharge':
-          navigate(`/coordinator/${assignedDepartment || 'external'}/competitions`, { replace: true });
-          break;
-        case 'teacher':
-          navigate('/teacher', { replace: true });
-          break;
-      }
-    }
-  }, [user, role, authLoading, navigate, assignedDepartment]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      const { error } = await signIn(email, password);
-      
-      if (error) {
-        toast({
-          title: 'Login Failed',
-          description: error.message,
-          variant: 'destructive',
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName },
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        // Insert profile
+        await supabase.from('profiles').insert({
+          id: data.user.id,
+          email,
+          full_name: fullName,
         });
-        setIsLoading(false);
-      } else {
-        logAudit('login', `User logged in: ${email}`);
-        toast({
-          title: 'Welcome!',
-          description: 'Login successful. Redirecting...',
+
+        // Insert teacher role
+        await (supabase as any).from('user_roles').insert({
+          user_id: data.user.id,
+          role: 'teacher',
         });
+
+        toast({
+          title: 'Account Created!',
+          description: 'You can now sign in with your credentials.',
+        });
+        navigate('/login');
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
-        title: 'Error',
-        description: 'An unexpected error occurred',
+        title: 'Signup Failed',
+        description: error.message || 'An error occurred',
         variant: 'destructive',
       });
+    } finally {
       setIsLoading(false);
     }
   };
@@ -70,27 +65,38 @@ const Login: React.FC = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-hero p-4">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent" />
-      
+
       <Card className="w-full max-w-md animate-slide-up relative z-10 shadow-card">
         <CardHeader className="text-center pb-2">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-primary shadow-lg">
             <Trophy className="h-8 w-8 text-primary-foreground" />
           </div>
-          <CardTitle className="text-2xl font-bold">Competition Manager</CardTitle>
+          <CardTitle className="text-2xl font-bold">Teacher Registration</CardTitle>
           <CardDescription className="text-muted-foreground">
-            External Competition Management System
+            Create your teacher account
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
+              <Label htmlFor="fullName">Full Name</Label>
+              <Input
+                id="fullName"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Enter your full name"
+                required
+                className="h-11"
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
                 required
                 className="h-11"
               />
@@ -100,40 +106,40 @@ const Login: React.FC = () => {
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder="Create a password"
                 required
+                minLength={6}
                 className="h-11"
               />
             </div>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full h-11 bg-gradient-primary hover:opacity-90 transition-opacity"
               disabled={isLoading}
             >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
+                  Creating Account...
                 </>
               ) : (
-                'Sign In'
+                'Sign Up as Teacher'
               )}
             </Button>
           </form>
 
           <div className="mt-4 text-center text-sm text-muted-foreground">
             <p>
-              Teacher?{' '}
+              Already have an account?{' '}
               <button
-                onClick={() => navigate('/signup')}
+                onClick={() => navigate('/login')}
                 className="text-primary hover:underline font-medium"
               >
-                Sign up here
+                Sign In
               </button>
             </p>
-            <p className="mt-2">Contact your administrator for other account types</p>
           </div>
         </CardContent>
       </Card>
@@ -141,4 +147,4 @@ const Login: React.FC = () => {
   );
 };
 
-export default Login;
+export default Signup;

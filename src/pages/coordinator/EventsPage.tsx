@@ -57,7 +57,7 @@ const EventsPage: React.FC = () => {
   });
   const { toast } = useToast();
   const { role } = useAuth();
-  const canManage = role === 'admin' || role === 'coordinator';
+  const canManage = role === 'admin' || role === 'coordinator' || role === 'department_incharge';
   const allClasses = Array.from({ length: 12 }, (_, i) => i + 1);
 
   const fetchData = async () => {
