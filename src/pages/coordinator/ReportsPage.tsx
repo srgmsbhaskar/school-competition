@@ -6,15 +6,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Trophy, Users, Award, FileSpreadsheet, FileText, Calendar, MapPin } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Loader2, Trophy, Users, Award, FileSpreadsheet, FileText, Calendar, MapPin, FileImage, Printer } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { exportToPDF, exportToExcel, type PageSize } from '@/lib/exportUtils';
 import { format } from 'date-fns';
 import { useDepartment } from '@/hooks/useDepartment';
 
 interface Competition { id: string; name: string; competition_date: string; venue: string; }
-interface ParticipationReport { id: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; event_type: string; prize: string | null; }
-interface PrizeWinner { student_name: string; admission_no: string; class: number; section: string; total_prizes: number; prizes: { event: string; prize: string; competition: string }[]; }
+interface ParticipationReport { id: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; event_type: string; prize: string | null; certificate_url: string | null; }
+interface PrizeWinner { student_name: string; admission_no: string; class: number; section: string; total_prizes: number; prizes: { event: string; prize: string; competition: string; certificate_url?: string | null }[]; }
 
 const prizeRanking: Record<string, number> = {
   winner: 15, runner_up_1: 12, runner_up_2: 10, first: 9, second: 8, third: 5, consolation: 3,
@@ -28,6 +29,7 @@ const ReportsPage: React.FC = () => {
   const [prizeWinners, setPrizeWinners] = useState<PrizeWinner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pageSize, setPageSize] = useState<PageSize>('a4');
+  const [viewingCertificate, setViewingCertificate] = useState<{ url: string; name: string } | null>(null);
 
   useEffect(() => {
     const fetchCompetitions = async () => {
@@ -46,21 +48,20 @@ const ReportsPage: React.FC = () => {
 
   const fetchParticipationReport = async () => {
     setIsLoading(true);
-    const { data } = await supabase.from('student_participations').select(`id, prize, student:students(name, admission_no, class, section), event:events(name, event_type)`).eq('competition_id', selectedCompetition);
+    const { data } = await supabase.from('student_participations').select(`id, prize, certificate_url, student:students(name, admission_no, class, section), event:events(name, event_type)`).eq('competition_id', selectedCompetition);
     const report: ParticipationReport[] = (data || []).map((p: any) => ({
-      id: p.id, student_name: p.student?.name || '', admission_no: p.student?.admission_no || '', class: p.student?.class || 0, section: p.student?.section || '', event_name: p.event?.name || '', event_type: p.event?.event_type || 'solo', prize: p.prize,
+      id: p.id, student_name: p.student?.name || '', admission_no: p.student?.admission_no || '', class: p.student?.class || 0, section: p.student?.section || '', event_name: p.event?.name || '', event_type: p.event?.event_type || 'solo', prize: p.prize, certificate_url: p.certificate_url,
     }));
     setParticipations(report);
     setIsLoading(false);
   };
 
   const fetchPrizeWinners = async () => {
-    // Get competition IDs for this department
     const { data: deptCompetitions } = await supabase.from('competitions').select('id').eq('department', department);
     const competitionIds = (deptCompetitions || []).map((c) => c.id);
     if (competitionIds.length === 0) { setPrizeWinners([]); return; }
 
-    const { data } = await supabase.from('student_participations').select(`prize, student:students(id, name, admission_no, class, section), event:events(name), competition:competitions(name)`).not('prize', 'is', null).in('competition_id', competitionIds);
+    const { data } = await supabase.from('student_participations').select(`prize, certificate_url, student:students(id, name, admission_no, class, section), event:events(name), competition:competitions(name)`).not('prize', 'is', null).in('competition_id', competitionIds);
 
     const winnersMap = new Map<string, PrizeWinner>();
     (data || []).forEach((p: any) => {
@@ -71,7 +72,7 @@ const ReportsPage: React.FC = () => {
       }
       const winner = winnersMap.get(studentId)!;
       winner.total_prizes += prizeRanking[p.prize] || 0;
-      winner.prizes.push({ event: p.event?.name || '', prize: p.prize, competition: p.competition?.name || '' });
+      winner.prizes.push({ event: p.event?.name || '', prize: p.prize, competition: p.competition?.name || '', certificate_url: p.certificate_url });
     });
     setPrizeWinners(Array.from(winnersMap.values()).sort((a, b) => b.total_prizes - a.total_prizes));
   };
@@ -86,6 +87,15 @@ const ReportsPage: React.FC = () => {
   };
 
   const selectedCompetitionData = competitions.find((c) => c.id === selectedCompetition);
+
+  const handlePrintCertificate = (url: string) => {
+    const printWindow = window.open(url, '_blank');
+    if (printWindow) {
+      printWindow.addEventListener('load', () => {
+        printWindow.print();
+      });
+    }
+  };
 
   const handleExportParticipationPDF = () => {
     const comp = selectedCompetitionData;
@@ -126,6 +136,27 @@ const ReportsPage: React.FC = () => {
   return (
     <DashboardLayout title={`${departmentLabel} - Reports`}>
       <div className="space-y-6 animate-fade-in">
+        {/* Certificate Viewer Dialog */}
+        <Dialog open={!!viewingCertificate} onOpenChange={() => setViewingCertificate(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center justify-between">
+                <span>Certificate - {viewingCertificate?.name}</span>
+                <Button size="sm" variant="outline" onClick={() => viewingCertificate && handlePrintCertificate(viewingCertificate.url)}>
+                  <Printer className="h-4 w-4 mr-2" />Print
+                </Button>
+              </DialogTitle>
+            </DialogHeader>
+            {viewingCertificate && (
+              viewingCertificate.url.endsWith('.pdf') ? (
+                <iframe src={viewingCertificate.url} className="w-full h-[70vh]" title="Certificate" />
+              ) : (
+                <img src={viewingCertificate.url} alt="Certificate" className="w-full h-auto max-h-[70vh] object-contain" />
+              )
+            )}
+          </DialogContent>
+        </Dialog>
+
         {/* Page Size Selector */}
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">Export Page Size:</span>
@@ -219,7 +250,7 @@ const ReportsPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2"><Award className="h-5 w-5 text-primary" />Top Prize Winners</CardTitle>
-                    <CardDescription>Students ranked by their prize achievements in {departmentLabel.toLowerCase()}</CardDescription>
+                    <CardDescription>Students ranked by their prize achievements in {departmentLabel.toLowerCase()}. Click a student name to view their certificate.</CardDescription>
                   </div>
                   {prizeWinners.length > 0 && (
                     <div className="flex gap-2">
@@ -238,20 +269,35 @@ const ReportsPage: React.FC = () => {
                       <TableRow><TableHead className="w-12">Rank</TableHead><TableHead>Student</TableHead><TableHead>Admission No.</TableHead><TableHead>Class</TableHead><TableHead>Prizes</TableHead><TableHead>Points</TableHead></TableRow>
                     </TableHeader>
                     <TableBody>
-                      {prizeWinners.map((winner, idx) => (
-                        <TableRow key={winner.admission_no}>
-                          <TableCell className="font-bold">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}</TableCell>
-                          <TableCell className="font-medium">{winner.student_name}</TableCell>
-                          <TableCell className="font-mono">{winner.admission_no}</TableCell>
-                          <TableCell>{winner.class}-{winner.section}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {winner.prizes.map((p, i) => (<Badge key={i} variant={getPrizeBadgeVariant(p.prize)} className="text-xs">{formatPrize(p.prize)}</Badge>))}
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-semibold">{winner.total_prizes}</TableCell>
-                        </TableRow>
-                      ))}
+                      {prizeWinners.map((winner, idx) => {
+                        const certPrize = winner.prizes.find((p) => p.certificate_url);
+                        return (
+                          <TableRow key={winner.admission_no}>
+                            <TableCell className="font-bold">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}</TableCell>
+                            <TableCell>
+                              {certPrize?.certificate_url ? (
+                                <button
+                                  className="font-medium text-primary underline underline-offset-2 hover:text-primary/80 flex items-center gap-1"
+                                  onClick={() => setViewingCertificate({ url: certPrize.certificate_url!, name: winner.student_name })}
+                                >
+                                  <FileImage className="h-3 w-3" />
+                                  {winner.student_name}
+                                </button>
+                              ) : (
+                                <span className="font-medium">{winner.student_name}</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="font-mono">{winner.admission_no}</TableCell>
+                            <TableCell>{winner.class}-{winner.section}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {winner.prizes.map((p, i) => (<Badge key={i} variant={getPrizeBadgeVariant(p.prize)} className="text-xs">{formatPrize(p.prize)}</Badge>))}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-semibold">{winner.total_prizes}</TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 )}
