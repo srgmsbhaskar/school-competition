@@ -1,67 +1,102 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Save, Loader2 } from 'lucide-react';
+import { Save, Loader2, Download, Upload, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const AdminSettings: React.FC = () => {
   const [googleDrivePath, setGoogleDrivePath] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const { data, error } = await supabase
-          .from('app_settings')
-          .select('*')
-          .eq('key', 'google_drive_path')
-          .single();
-
-        if (data) {
-          setGoogleDrivePath(data.value || '');
-        }
+        const { data } = await supabase.from('app_settings').select('*').eq('key', 'google_drive_path').single();
+        if (data) setGoogleDrivePath(data.value || '');
       } catch (error) {
         console.error('Error fetching settings:', error);
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchSettings();
   }, []);
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const { error } = await supabase.from('app_settings').upsert({
-        key: 'google_drive_path',
-        value: googleDrivePath,
-        updated_at: new Date().toISOString(),
-      }, {
-        onConflict: 'key',
-      });
-
+      const { error } = await supabase.from('app_settings').upsert({ key: 'google_drive_path', value: googleDrivePath, updated_at: new Date().toISOString() }, { onConflict: 'key' });
       if (error) throw error;
-
-      toast({
-        title: 'Settings Saved',
-        description: 'Your settings have been updated successfully',
-      });
+      toast({ title: 'Settings Saved', description: 'Your settings have been updated successfully' });
     } catch (error: any) {
-      console.error('Error saving settings:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to save settings',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: error.message || 'Failed to save settings', variant: 'destructive' });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleBackup = async () => {
+    setIsBackingUp(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const response = await supabase.functions.invoke('backup-data', { method: 'GET' });
+
+      if (response.error) throw response.error;
+
+      const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({ title: 'Backup Complete', description: 'Data has been downloaded to your computer' });
+    } catch (error: any) {
+      toast({ title: 'Backup Failed', description: error.message || 'Failed to create backup', variant: 'destructive' });
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    setIsRestoring(true);
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      if (!data._meta) throw new Error('Invalid backup file format');
+
+      const response = await supabase.functions.invoke('backup-data', {
+        method: 'POST',
+        body: data,
+      });
+
+      if (response.error) throw response.error;
+
+      toast({ title: 'Restore Complete', description: 'Data has been restored successfully. Please refresh the page.' });
+    } catch (error: any) {
+      toast({ title: 'Restore Failed', description: error.message || 'Failed to restore data', variant: 'destructive' });
+    } finally {
+      setIsRestoring(false);
     }
   };
 
@@ -71,37 +106,54 @@ const AdminSettings: React.FC = () => {
         <Card>
           <CardHeader>
             <CardTitle>Storage Settings</CardTitle>
-            <CardDescription>
-              Configure where competition data and certificates are stored
-            </CardDescription>
+            <CardDescription>Configure where competition data and certificates are stored</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="drivePath">Google Drive Path</Label>
-              <Input
-                id="drivePath"
-                value={googleDrivePath}
-                onChange={(e) => setGoogleDrivePath(e.target.value)}
-                placeholder="Enter Google Drive folder path or ID"
-              />
-              <p className="text-xs text-muted-foreground">
-                Specify the Google Drive folder where competition data will be stored
-              </p>
+              <Input id="drivePath" value={googleDrivePath} onChange={(e) => setGoogleDrivePath(e.target.value)} placeholder="Enter Google Drive folder path or ID" />
+              <p className="text-xs text-muted-foreground">Specify the Google Drive folder where competition data will be stored</p>
             </div>
-
             <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Settings
-                </>
-              )}
+              {isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>) : (<><Save className="mr-2 h-4 w-4" />Save Settings</>)}
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Backup & Restore</CardTitle>
+            <CardDescription>Download a full backup of all competition data or restore from a previous backup</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-4">
+              <Button onClick={handleBackup} disabled={isBackingUp} variant="outline">
+                {isBackingUp ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating Backup...</>) : (<><Download className="mr-2 h-4 w-4" />Download Backup</>)}
+              </Button>
+
+              <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleRestore} />
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" disabled={isRestoring}>
+                    {isRestoring ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Restoring...</>) : (<><Upload className="mr-2 h-4 w-4" />Restore from Backup</>)}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-destructive" />Restore Data?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will replace ALL existing competition data with the backup file. This action cannot be undone. Make sure to download a current backup first.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => fileInputRef.current?.click()}>Select Backup File</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+            <p className="text-xs text-muted-foreground">Backup includes: students, competitions, events, participations, prizes, and teacher assignments</p>
           </CardContent>
         </Card>
 

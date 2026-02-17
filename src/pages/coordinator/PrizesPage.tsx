@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Save, Trophy, Award } from 'lucide-react';
+import { Loader2, Save, Trophy, Award, Upload, FileImage } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -14,7 +14,7 @@ import { useDepartment } from '@/hooks/useDepartment';
 
 interface Competition { id: string; name: string; is_completed: boolean; }
 interface Event { id: string; name: string; competition_id: string; event_type: 'solo' | 'group'; }
-interface Participation { id: string; student_id: string; event_id: string; prize: string | null; student: { id: string; name: string; admission_no: string; class: number; section: string; }; }
+interface Participation { id: string; student_id: string; event_id: string; prize: string | null; certificate_url: string | null; student: { id: string; name: string; admission_no: string; class: number; section: string; }; }
 interface Student { id: string; name: string; admission_no: string; class: number; section: string; }
 interface CompetitionPrize { id: string; competition_id: string; student_id: string; prize: string; student?: Student; }
 
@@ -44,6 +44,8 @@ const PrizesPage: React.FC = () => {
   const [competitionPrizes, setCompetitionPrizes] = useState<CompetitionPrize[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [updatedCompetitionPrizes, setUpdatedCompetitionPrizes] = useState<Record<string, string>>({});
+  const [uploadingCertFor, setUploadingCertFor] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -150,6 +152,51 @@ const PrizesPage: React.FC = () => {
     }
   };
 
+  const handleCertificateUpload = async (participationId: string, file: File) => {
+    setUploadingCertFor(participationId);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${participationId}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('certificates')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('certificates')
+        .getPublicUrl(filePath);
+
+      await supabase.from('student_participations')
+        .update({ certificate_url: urlData.publicUrl })
+        .eq('id', participationId);
+
+      toast({ title: 'Success', description: 'Certificate uploaded successfully' });
+
+      // Refresh participations
+      const { data } = await supabase.from('student_participations').select('*, student:students(*)').eq('event_id', selectedEvent).order('group_number');
+      setParticipations(data || []);
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to upload certificate', variant: 'destructive' });
+    } finally {
+      setUploadingCertFor(null);
+    }
+  };
+
+  const triggerFileUpload = (participationId: string) => {
+    setUploadingCertFor(participationId);
+    fileInputRef.current?.click();
+  };
+
+  const onFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && uploadingCertFor) {
+      handleCertificateUpload(uploadingCertFor, file);
+    }
+    e.target.value = '';
+  };
+
   const getPrizeValue = (participation: Participation) => updatedPrizes[participation.id] ?? participation.prize ?? '';
   const getCompetitionPrizeStudent = (prizeType: string) => {
     if (updatedCompetitionPrizes[prizeType]) return updatedCompetitionPrizes[prizeType];
@@ -166,10 +213,19 @@ const PrizesPage: React.FC = () => {
   };
 
   const selectedEventData = events.find((e) => e.id === selectedEvent);
+  const showCertUpload = department === 'other';
 
   return (
     <DashboardLayout title={`${departmentLabel} - Prizes`}>
       <div className="space-y-6 animate-fade-in">
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          accept="image/*,.pdf"
+          onChange={onFileSelected}
+        />
+
         <div className="w-64">
           <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
             <SelectTrigger><SelectValue placeholder="Select competition" /></SelectTrigger>
@@ -272,6 +328,7 @@ const PrizesPage: React.FC = () => {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Student</TableHead><TableHead>Admission No.</TableHead><TableHead>Class</TableHead><TableHead>Current Prize</TableHead><TableHead>Update Prize</TableHead>
+                          {showCertUpload && <TableHead>Certificate</TableHead>}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -291,6 +348,35 @@ const PrizesPage: React.FC = () => {
                                 </SelectContent>
                               </Select>
                             </TableCell>
+                            {showCertUpload && (
+                              <TableCell>
+                                {p.prize ? (
+                                  <div className="flex items-center gap-2">
+                                    {p.certificate_url ? (
+                                      <a href={p.certificate_url} target="_blank" rel="noopener noreferrer">
+                                        <Badge variant="outline" className="cursor-pointer flex items-center gap-1">
+                                          <FileImage className="h-3 w-3" />View
+                                        </Badge>
+                                      </a>
+                                    ) : null}
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => triggerFileUpload(p.id)}
+                                      disabled={uploadingCertFor === p.id}
+                                    >
+                                      {uploadingCertFor === p.id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <><Upload className="h-4 w-4 mr-1" />{p.certificate_url ? 'Replace' : 'Upload'}</>
+                                      )}
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground text-xs">Assign prize first</span>
+                                )}
+                              </TableCell>
+                            )}
                           </TableRow>
                         ))}
                       </TableBody>
