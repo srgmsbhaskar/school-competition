@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
@@ -56,11 +56,29 @@ const RoleBasedRedirect = () => {
   }
 };
 
-const CoordinatorRoute = ({ children }: { children: React.ReactNode }) => (
-  <ProtectedRoute allowedRoles={['coordinator', 'admin', 'department_incharge']}>
-    {children}
-  </ProtectedRoute>
-);
+const CoordinatorRoute = ({ children }: { children: React.ReactNode }) => {
+  const { role, assignedDepartment, isLoading } = useAuth();
+  const location = useLocation();
+
+  // Extract :department from the current path e.g. /coordinator/sports/competitions
+  const pathMatch = location.pathname.match(/\/coordinator\/([^/]+)/);
+  const urlDepartment = pathMatch ? pathMatch[1] : null;
+
+  // If dept_incharge is on the wrong department URL, redirect them to their own
+  if (!isLoading && role === 'department_incharge' && assignedDepartment && urlDepartment && urlDepartment !== assignedDepartment) {
+    const newPath = location.pathname.replace(
+      `/coordinator/${urlDepartment}`,
+      `/coordinator/${assignedDepartment}`
+    );
+    return <Navigate to={newPath + location.search} replace />;
+  }
+
+  return (
+    <ProtectedRoute allowedRoles={['coordinator', 'admin', 'department_incharge']}>
+      {children}
+    </ProtectedRoute>
+  );
+};
 
 const AppRoutes = () => {
   return (
