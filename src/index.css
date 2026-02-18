@@ -173,24 +173,100 @@
     background-image: var(--gradient-hero);
   }
 
-  /* Department color themes */
-  .dept-external { --dept-color: 220 60% 25%; --dept-bg: 220 60% 95%; }
-  .dept-internal { --dept-color: 270 55% 40%; --dept-bg: 270 55% 95%; }
-  .dept-sports { --dept-color: 145 55% 35%; --dept-bg: 145 55% 95%; }
-  .dept-other { --dept-color: 30 80% 45%; --dept-bg: 30 80% 95%; }
+  /* ── Department colour themes ─────────────────────────────────────────
+     Each class overrides sidebar + primary tokens so the whole layout
+     inherits the department identity without touching component code.
+  ──────────────────────────────────────────────────────────────────── */
 
+  /* External Competition – Royal Blue */
+  .dept-external {
+    --primary:                    217 91% 40%;
+    --primary-foreground:         0 0% 100%;
+    --ring:                       217 91% 40%;
+    --sidebar-background:         217 91% 20%;
+    --sidebar-foreground:         210 20% 95%;
+    --sidebar-primary:            210 80% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent:             217 80% 30%;
+    --sidebar-accent-foreground:  210 20% 95%;
+    --sidebar-border:             217 70% 28%;
+    --sidebar-ring:               210 80% 65%;
+    --dept-accent:                217 91% 40%;
+    --dept-accent-light:          217 91% 95%;
+  }
+
+  /* Internal Competition – Deep Violet */
+  .dept-internal {
+    --primary:                    262 72% 42%;
+    --primary-foreground:         0 0% 100%;
+    --ring:                       262 72% 42%;
+    --sidebar-background:         262 72% 18%;
+    --sidebar-foreground:         270 20% 95%;
+    --sidebar-primary:            270 70% 72%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent:             262 65% 28%;
+    --sidebar-accent-foreground:  270 20% 95%;
+    --sidebar-border:             262 60% 26%;
+    --sidebar-ring:               270 70% 72%;
+    --dept-accent:                262 72% 42%;
+    --dept-accent-light:          262 72% 95%;
+  }
+
+  /* Sports – Forest Green */
+  .dept-sports {
+    --primary:                    142 71% 32%;
+    --primary-foreground:         0 0% 100%;
+    --ring:                       142 71% 32%;
+    --sidebar-background:         142 71% 14%;
+    --sidebar-foreground:         145 20% 95%;
+    --sidebar-primary:            145 65% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent:             142 60% 22%;
+    --sidebar-accent-foreground:  145 20% 95%;
+    --sidebar-border:             142 55% 20%;
+    --sidebar-ring:               145 65% 60%;
+    --dept-accent:                142 71% 32%;
+    --dept-accent-light:          142 71% 94%;
+  }
+
+  /* Other Competition – Warm Amber */
+  .dept-other {
+    --primary:                    32 95% 40%;
+    --primary-foreground:         0 0% 100%;
+    --ring:                       32 95% 40%;
+    --sidebar-background:         32 80% 18%;
+    --sidebar-foreground:         38 20% 95%;
+    --sidebar-primary:            38 90% 62%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent:             32 75% 28%;
+    --sidebar-accent-foreground:  38 20% 95%;
+    --sidebar-border:             32 70% 24%;
+    --sidebar-ring:               38 90% 62%;
+    --dept-accent:                32 95% 40%;
+    --dept-accent-light:          32 95% 95%;
+  }
+
+  /* Watermark trophy behind the main content */
   .dept-watermark {
     position: relative;
   }
   .dept-watermark::before {
     content: '🏆';
     position: fixed;
-    bottom: 2rem;
+    bottom: 1.5rem;
     right: 2rem;
-    font-size: 12rem;
-    opacity: 0.04;
+    font-size: 14rem;
+    opacity: 0.05;
     pointer-events: none;
     z-index: 0;
+    filter: grayscale(1);
+  }
+
+  /* Dept-accent utility classes (use in badges, highlights, etc.) */
+  .dept-accent-badge {
+    background-color: hsl(var(--dept-accent-light));
+    color: hsl(var(--dept-accent));
+    border: 1px solid hsl(var(--dept-accent) / 0.25);
   }
 
   .animate-fade-in {
