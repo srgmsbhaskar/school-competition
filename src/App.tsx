@@ -8,7 +8,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 // Pages
 import Login from "./pages/Login";
-import Signup from "./pages/Signup";
+
 import ChangePassword from "./pages/ChangePassword";
 import NotFound from "./pages/NotFound";
 
@@ -84,7 +84,7 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
+      
       
       <Route path="/" element={
         <ProtectedRoute>
