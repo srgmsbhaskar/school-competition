@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
+import { FrozenBanner } from '@/components/FrozenBanner';
 
 interface AssignedCompetition {
   id: string;
@@ -65,6 +66,7 @@ const TeacherDashboard: React.FC = () => {
   return (
     <DashboardLayout title="Teacher Dashboard">
       <div className="space-y-6 animate-fade-in">
+        <FrozenBanner />
         <div>
           <p className="text-muted-foreground mb-6">
             View competitions assigned to you and select students for participation

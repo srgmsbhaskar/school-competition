@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -27,8 +27,10 @@ import {
   ClipboardList,
   ArrowLeft,
   Lock,
+  Snowflake,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 
 const departmentLabels: Record<string, string> = {
   external: 'External Competition',
@@ -37,11 +39,32 @@ const departmentLabels: Record<string, string> = {
   other: 'Other Competition',
 };
 
+// Color palette for competitions in sidebar
+const competitionColors = [
+  'text-blue-600',
+  'text-emerald-600',
+  'text-purple-600',
+  'text-orange-600',
+  'text-rose-600',
+  'text-cyan-600',
+  'text-amber-600',
+  'text-indigo-600',
+  'text-teal-600',
+  'text-pink-600',
+];
+
+interface CompetitionItem {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export const AppSidebar: React.FC = () => {
   const { role, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { department } = useParams<{ department: string }>();
+  const [competitions, setCompetitions] = useState<CompetitionItem[]>([]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -50,11 +73,36 @@ export const AppSidebar: React.FC = () => {
 
   const canChangePassword = role === 'coordinator' || role === 'department_incharge' || role === 'teacher';
 
+  // Fetch competitions for dept in-charge sidebar
+  useEffect(() => {
+    if (role === 'department_incharge' && department) {
+      const fetchCompetitions = async () => {
+        const { data } = await supabase
+          .from('competitions')
+          .select('id, name')
+          .eq('department', department as 'external' | 'internal' | 'sports' | 'other')
+          .order('competition_date', { ascending: false });
+
+        if (data) {
+          setCompetitions(
+            data.map((c, i) => ({
+              id: c.id,
+              name: c.name,
+              color: competitionColors[i % competitionColors.length],
+            }))
+          );
+        }
+      };
+      fetchCompetitions();
+    }
+  }, [role, department]);
+
   const adminMenuItems = [
     { title: 'Dashboard', icon: Home, path: '/admin' },
     { title: 'User Management', icon: UserPlus, path: '/admin/users' },
     { title: 'Student Database', icon: Users, path: '/admin/students' },
-    { title: 'Upload Students', icon: Upload, path: '/admin/upload' },
+    { title: 'Upload', icon: Upload, path: '/admin/upload' },
+    { title: 'Freeze', icon: Snowflake, path: '/admin/freeze' },
     { title: 'Settings', icon: Settings, path: '/admin/settings' },
   ];
 
@@ -80,6 +128,18 @@ export const AppSidebar: React.FC = () => {
     ];
   };
 
+  const getDeptInchargeMenuItems = () => {
+    if (!department) return [];
+    return [
+      { title: 'Competitions', icon: Trophy, path: `/coordinator/${department}/competitions` },
+      { title: 'Events', icon: Calendar, path: `/coordinator/${department}/events` },
+      { title: 'Assign Teachers', icon: ClipboardList, path: `/coordinator/${department}/assign-teachers` },
+      { title: 'Select Students', icon: Users, path: `/coordinator/${department}/select-students` },
+      { title: 'Prizes', icon: Award, path: `/coordinator/${department}/prizes` },
+      { title: 'Reports', icon: FileText, path: `/coordinator/${department}/reports` },
+    ];
+  };
+
   const teacherMenuItems = [
     { title: 'Dashboard', icon: Home, path: '/teacher' },
     { title: 'My Competitions', icon: Trophy, path: '/teacher/competitions' },
@@ -91,8 +151,9 @@ export const AppSidebar: React.FC = () => {
       case 'admin':
         return adminMenuItems;
       case 'coordinator':
-      case 'department_incharge':
         return getCoordinatorMenuItems();
+      case 'department_incharge':
+        return getDeptInchargeMenuItems();
       case 'teacher':
         return teacherMenuItems;
       default:
@@ -143,6 +204,31 @@ export const AppSidebar: React.FC = () => {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Dept in-charge: show competitions as separate colored items */}
+        {role === 'department_incharge' && department && competitions.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-sidebar-foreground/60">
+              Competitions
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {competitions.map((comp) => (
+                  <SidebarMenuItem key={comp.id}>
+                    <SidebarMenuButton
+                      onClick={() => navigate(`/coordinator/${department}/events?competition=${comp.id}`)}
+                      isActive={location.search.includes(comp.id)}
+                      tooltip={comp.name}
+                    >
+                      <Trophy className={`h-4 w-4 ${comp.color}`} />
+                      <span className="truncate">{comp.name}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-4 space-y-2">
         {canChangePassword && (

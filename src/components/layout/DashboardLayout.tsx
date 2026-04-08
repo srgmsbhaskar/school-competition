@@ -11,7 +11,7 @@ interface DashboardLayoutProps {
 }
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) => {
-  const { user } = useAuth();
+  const { user, role, academicYear } = useAuth();
   const { department } = useParams<{ department: string }>();
 
   const deptClass = department ? `dept-${department} dept-watermark` : '';
@@ -29,6 +29,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
             </h1>
           )}
           <div className="ml-auto flex items-center gap-4">
+            {role !== 'admin' && role !== 'coordinator' && (
+              <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded font-medium">
+                AY: {academicYear}
+              </span>
+            )}
             <span className="text-sm text-muted-foreground">
               {user?.email}
             </span>

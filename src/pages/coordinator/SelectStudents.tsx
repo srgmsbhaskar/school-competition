@@ -24,7 +24,7 @@ const CoordinatorSelectStudents: React.FC = () => {
   const [searchParams] = useSearchParams();
   const initialCompetitionId = searchParams.get('competition');
 
-  const { user } = useAuth();
+  const { user, academicYear, role } = useAuth();
   const { toast } = useToast();
 
   const [competitions, setCompetitions] = useState<Competition[]>([]);
@@ -92,6 +92,10 @@ const CoordinatorSelectStudents: React.FC = () => {
 
     let query = supabase.from('students').select('*').order('class').order('section').order('s_no');
     if (event.classes.length > 0) query = query.in('class', event.classes);
+    // Filter by academic year for dept_incharge and teacher roles
+    if (role === 'department_incharge' || role === 'teacher') {
+      query = query.eq('academic_year', academicYear);
+    }
     const { data: studentsData } = await query;
     setStudents(studentsData || []);
     setIsLoading(false);

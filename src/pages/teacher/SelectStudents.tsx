@@ -12,6 +12,7 @@ import { Loader2, Save, Users, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { FrozenBanner } from '@/components/FrozenBanner';
 
 interface Competition {
   id: string;
@@ -42,7 +43,7 @@ const SelectStudents: React.FC = () => {
   const [searchParams] = useSearchParams();
   const initialCompetitionId = searchParams.get('competition');
   
-  const { user } = useAuth();
+  const { user, academicYear, isFrozen } = useAuth();
   const { toast } = useToast();
   
   const [competitions, setCompetitions] = useState<Competition[]>([]);
@@ -142,12 +143,13 @@ const SelectStudents: React.FC = () => {
 
     setEvents(filteredEvents);
 
-    // Get students from assigned classes
+    // Get students from assigned classes filtered by academic year
     if (classes.length > 0) {
       const { data: studentsData } = await supabase
         .from('students')
         .select('*')
         .in('class', classes)
+        .eq('academic_year', academicYear)
         .order('class')
         .order('section')
         .order('s_no');
@@ -259,6 +261,7 @@ const SelectStudents: React.FC = () => {
   return (
     <DashboardLayout title="Select Students">
       <div className="space-y-6 animate-fade-in">
+        <FrozenBanner />
         <div className="flex items-center gap-4 flex-wrap">
           <div className="w-64">
             <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
@@ -293,7 +296,7 @@ const SelectStudents: React.FC = () => {
           )}
 
           {selectedEvent && (
-            <Button onClick={handleSave} disabled={isSaving} className="ml-auto">
+            <Button onClick={handleSave} disabled={isSaving || isFrozen} className="ml-auto">
               {isSaving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
