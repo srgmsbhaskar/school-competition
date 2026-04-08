@@ -18,6 +18,7 @@ import UserManagement from "./pages/admin/UserManagement";
 import StudentDatabase from "./pages/admin/StudentDatabase";
 import UploadStudents from "./pages/admin/UploadStudents";
 import AdminSettings from "./pages/admin/AdminSettings";
+import FreezeManagement from "./pages/admin/FreezeManagement";
 
 // Coordinator Pages
 import CoordinatorDashboard from "./pages/coordinator/CoordinatorDashboard";
@@ -60,11 +61,9 @@ const CoordinatorRoute = ({ children }: { children: React.ReactNode }) => {
   const { role, assignedDepartment, isLoading } = useAuth();
   const location = useLocation();
 
-  // Extract :department from the current path e.g. /coordinator/sports/competitions
   const pathMatch = location.pathname.match(/\/coordinator\/([^/]+)/);
   const urlDepartment = pathMatch ? pathMatch[1] : null;
 
-  // If dept_incharge is on the wrong department URL, redirect them to their own
   if (!isLoading && role === 'department_incharge' && assignedDepartment && urlDepartment && urlDepartment !== assignedDepartment) {
     const newPath = location.pathname.replace(
       `/coordinator/${urlDepartment}`,
@@ -85,7 +84,6 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/login" element={<Login />} />
       
-      
       <Route path="/" element={
         <ProtectedRoute>
           <RoleBasedRedirect />
@@ -97,6 +95,7 @@ const AppRoutes = () => {
       <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['admin']}><UserManagement /></ProtectedRoute>} />
       <Route path="/admin/students" element={<ProtectedRoute allowedRoles={['admin']}><StudentDatabase /></ProtectedRoute>} />
       <Route path="/admin/upload" element={<ProtectedRoute allowedRoles={['admin']}><UploadStudents /></ProtectedRoute>} />
+      <Route path="/admin/freeze" element={<ProtectedRoute allowedRoles={['admin']}><FreezeManagement /></ProtectedRoute>} />
       <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettings /></ProtectedRoute>} />
 
       {/* Coordinator Dashboard */}
@@ -115,7 +114,7 @@ const AppRoutes = () => {
       <Route path="/teacher/competitions" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherCompetitions /></ProtectedRoute>} />
       <Route path="/teacher/select-students" element={<ProtectedRoute allowedRoles={['teacher']}><SelectStudents /></ProtectedRoute>} />
 
-      {/* Change Password - for coordinator, department_incharge, teacher */}
+      {/* Change Password */}
       <Route path="/change-password" element={
         <ProtectedRoute allowedRoles={['coordinator', 'department_incharge', 'teacher']}>
           <ChangePassword />
