@@ -80,7 +80,7 @@ export const AppSidebar: React.FC = () => {
         const { data } = await supabase
           .from('competitions')
           .select('id, name')
-          .eq('department', department)
+          .eq('department', department as 'external' | 'internal' | 'sports' | 'other')
           .order('competition_date', { ascending: false });
 
         if (data) {
