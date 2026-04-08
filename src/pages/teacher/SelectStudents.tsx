@@ -296,7 +296,7 @@ const SelectStudents: React.FC = () => {
           )}
 
           {selectedEvent && (
-            <Button onClick={handleSave} disabled={isSaving} className="ml-auto">
+            <Button onClick={handleSave} disabled={isSaving || isFrozen} className="ml-auto">
               {isSaving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
