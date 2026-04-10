@@ -180,30 +180,6 @@ export const AppSidebar: React.FC = () => {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Dept in-charge: show competitions as separate colored items */}
-        {role === 'department_incharge' && department && competitions.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="text-sidebar-foreground/60">
-              Competitions
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {competitions.map((comp) => (
-                  <SidebarMenuItem key={comp.id}>
-                    <SidebarMenuButton
-                      onClick={() => navigate(`/coordinator/${department}/events?competition=${comp.id}`)}
-                      isActive={location.search.includes(comp.id)}
-                      tooltip={comp.name}
-                    >
-                      <Trophy className={`h-4 w-4 ${comp.color}`} />
-                      <span className="truncate">{comp.name}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-4 space-y-2">
         {canChangePassword && (
