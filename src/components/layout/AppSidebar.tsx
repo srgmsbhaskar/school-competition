@@ -30,7 +30,6 @@ import {
   Snowflake,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
 
 const departmentLabels: Record<string, string> = {
   external: 'External Competition',
@@ -38,26 +37,6 @@ const departmentLabels: Record<string, string> = {
   sports: 'Sports',
   other: 'Other Competition',
 };
-
-// Color palette for competitions in sidebar
-const competitionColors = [
-  'text-blue-600',
-  'text-emerald-600',
-  'text-purple-600',
-  'text-orange-600',
-  'text-rose-600',
-  'text-cyan-600',
-  'text-amber-600',
-  'text-indigo-600',
-  'text-teal-600',
-  'text-pink-600',
-];
-
-interface CompetitionItem {
-  id: string;
-  name: string;
-  color: string;
-}
 
 export const AppSidebar: React.FC = () => {
   const { role, signOut } = useAuth();
