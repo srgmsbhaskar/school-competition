@@ -283,12 +283,9 @@ const CompetitionsPage: React.FC = () => {
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>All Competitions</CardTitle>
-            <CardDescription>View and manage all {departmentLabel.toLowerCase()} competitions</CardDescription>
-          </CardHeader>
-          <CardContent>
+        {/* Dept in-charge: Competition cards view */}
+        {role === 'department_incharge' ? (
+          <div>
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -298,139 +295,209 @@ const CompetitionsPage: React.FC = () => {
                 No competitions found. Create your first competition to get started.
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Venue</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Prize</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {competitions.map((competition) => (
-                    <TableRow key={competition.id}>
-                      <TableCell className="font-medium">{competition.name}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          {new Date(competition.competition_date).toLocaleDateString()}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {competitions.map((competition, index) => {
+                  const colorPalette = [
+                    { bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-700', icon: 'text-blue-600' },
+                    { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-700', icon: 'text-emerald-600' },
+                    { bg: 'bg-purple-500/10', border: 'border-purple-500/30', text: 'text-purple-700', icon: 'text-purple-600' },
+                    { bg: 'bg-orange-500/10', border: 'border-orange-500/30', text: 'text-orange-700', icon: 'text-orange-600' },
+                    { bg: 'bg-rose-500/10', border: 'border-rose-500/30', text: 'text-rose-700', icon: 'text-rose-600' },
+                    { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-700', icon: 'text-cyan-600' },
+                    { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-700', icon: 'text-amber-600' },
+                    { bg: 'bg-indigo-500/10', border: 'border-indigo-500/30', text: 'text-indigo-700', icon: 'text-indigo-600' },
+                  ];
+                  const color = colorPalette[index % colorPalette.length];
+                  return (
+                    <Card
+                      key={competition.id}
+                      className={`cursor-pointer hover:shadow-lg transition-all border-2 ${color.border} ${competition.is_frozen ? 'opacity-60' : ''}`}
+                      onClick={() => navigate(`/coordinator/${department}/events?competition=${competition.id}`)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${color.bg} flex-shrink-0`}>
+                            <Trophy className={`h-5 w-5 ${color.icon}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className={`font-semibold text-sm truncate ${color.text}`}>{competition.name}</h3>
+                            <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                              <Calendar className="h-3 w-3" />
+                              {new Date(competition.competition_date).toLocaleDateString()}
+                            </div>
+                            <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
+                              <MapPin className="h-3 w-3" />
+                              <span className="truncate">{competition.venue}</span>
+                            </div>
+                            <div className="flex items-center gap-1 mt-2">
+                              <Badge variant={competition.is_completed ? 'secondary' : 'default'} className="text-xs">
+                                {competition.is_completed ? 'Completed' : 'Active'}
+                              </Badge>
+                              {competition.is_frozen && (
+                                <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
+                                  <Snowflake className="mr-1 h-3 w-3" />Frozen
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-muted-foreground" />
-                          {competition.venue}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {canManage ? (
-                          <Select
-                            value={editedStatuses[competition.id] ?? (competition.is_completed ? 'completed' : 'active')}
-                            onValueChange={(value) => setEditedStatuses(prev => ({ ...prev, [competition.id]: value }))}
-                          >
-                            <SelectTrigger className="w-32">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="active">Active</SelectItem>
-                              <SelectItem value="completed">Completed</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Badge variant={competition.is_completed ? 'secondary' : 'default'}>
-                            {competition.is_completed ? 'Completed' : 'Active'}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {canManage ? (
-                          <Select
-                            value={getGradeValue(competition)}
-                            onValueChange={(value) => handleGradeChange(competition.id, value)}
-                          >
-                            <SelectTrigger className="w-44">
-                              <SelectValue placeholder="Select grade" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {competitionGradeOptions.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          competition.prize ? (
-                            <Badge variant="outline">{getGradeLabel(competition.prize)}</Badge>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>All Competitions</CardTitle>
+              <CardDescription>View and manage all {departmentLabel.toLowerCase()} competitions</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : competitions.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No competitions found. Create your first competition to get started.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Venue</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Prize</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {competitions.map((competition) => (
+                      <TableRow key={competition.id}>
+                        <TableCell className="font-medium">{competition.name}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                            {new Date(competition.competition_date).toLocaleDateString()}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                            {competition.venue}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {canManage ? (
+                            <Select
+                              value={editedStatuses[competition.id] ?? (competition.is_completed ? 'completed' : 'active')}
+                              onValueChange={(value) => setEditedStatuses(prev => ({ ...prev, [competition.id]: value }))}
+                            >
+                              <SelectTrigger className="w-32">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="active">Active</SelectItem>
+                                <SelectItem value="completed">Completed</SelectItem>
+                              </SelectContent>
+                            </Select>
                           ) : (
-                            <span className="text-muted-foreground text-sm">—</span>
-                          )
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {canFreeze && (
+                            <Badge variant={competition.is_completed ? 'secondary' : 'default'}>
+                              {competition.is_completed ? 'Completed' : 'Active'}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {canManage ? (
+                            <Select
+                              value={getGradeValue(competition)}
+                              onValueChange={(value) => handleGradeChange(competition.id, value)}
+                            >
+                              <SelectTrigger className="w-44">
+                                <SelectValue placeholder="Select grade" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {competitionGradeOptions.map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            competition.prize ? (
+                              <Badge variant="outline">{getGradeLabel(competition.prize)}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">—</span>
+                            )
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {canFreeze && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleToggleFreeze(competition.id, competition.is_frozen)}
+                                title={competition.is_frozen ? 'Unfreeze competition' : 'Freeze competition'}
+                              >
+                                {competition.is_frozen ? (
+                                  <><Unlock className="mr-1 h-4 w-4 text-emerald-600" />Unfreeze</>
+                                ) : (
+                                  <><Snowflake className="mr-1 h-4 w-4 text-blue-600" />Freeze</>
+                                )}
+                              </Button>
+                            )}
+                            {!canFreeze && competition.is_frozen && (
+                              <Badge variant="outline" className="text-orange-600 border-orange-300">
+                                <Snowflake className="mr-1 h-3 w-3" />Frozen
+                              </Badge>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleToggleFreeze(competition.id, competition.is_frozen)}
-                              title={competition.is_frozen ? 'Unfreeze competition' : 'Freeze competition'}
+                              onClick={() => navigate(`/coordinator/${department}/events?competition=${competition.id}`)}
                             >
-                              {competition.is_frozen ? (
-                                <><Unlock className="mr-1 h-4 w-4 text-emerald-600" />Unfreeze</>
-                              ) : (
-                                <><Snowflake className="mr-1 h-4 w-4 text-blue-600" />Freeze</>
-                              )}
+                              <Eye className="mr-2 h-4 w-4" />
+                              Manage Events
                             </Button>
-                          )}
-                          {!canFreeze && competition.is_frozen && (
-                            <Badge variant="outline" className="text-orange-600 border-orange-300">
-                              <Snowflake className="mr-1 h-3 w-3" />Frozen
-                            </Badge>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => navigate(`/coordinator/${department}/events?competition=${competition.id}`)}
-                          >
-                            <Eye className="mr-2 h-4 w-4" />
-                            Manage Events
-                          </Button>
-                          {canManage && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Competition?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will permanently delete "{competition.name}" and all its events, participations, and prizes.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDeleteCompetition(competition.id)}>
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                            {canManage && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete Competition?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will permanently delete "{competition.name}" and all its events, participations, and prizes.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteCompetition(competition.id)}>
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </DashboardLayout>
   );
