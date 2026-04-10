@@ -137,6 +137,7 @@ export type Database = {
           department: Database["public"]["Enums"]["competition_department"]
           id: string
           is_completed: boolean | null
+          is_frozen: boolean
           name: string
           updated_at: string | null
           venue: string
@@ -149,6 +150,7 @@ export type Database = {
           department?: Database["public"]["Enums"]["competition_department"]
           id?: string
           is_completed?: boolean | null
+          is_frozen?: boolean
           name: string
           updated_at?: string | null
           venue: string
@@ -161,6 +163,7 @@ export type Database = {
           department?: Database["public"]["Enums"]["competition_department"]
           id?: string
           is_completed?: boolean | null
+          is_frozen?: boolean
           name?: string
           updated_at?: string | null
           venue?: string
