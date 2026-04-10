@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Loader2, Eye, Calendar, MapPin, Trash2, Save } from 'lucide-react';
+import { Plus, Loader2, Eye, Calendar, MapPin, Trash2, Save, Snowflake, Unlock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,6 +22,7 @@ interface Competition {
   competition_date: string;
   venue: string;
   is_completed: boolean;
+  is_frozen: boolean;
   created_at: string;
   prize?: string;
 }
@@ -51,6 +52,7 @@ const CompetitionsPage: React.FC = () => {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const canManage = role === 'admin' || role === 'coordinator' || role === 'department_incharge';
+  const canFreeze = role === 'admin' || role === 'coordinator';
 
   const fetchCompetitions = async () => {
     try {
