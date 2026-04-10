@@ -372,6 +372,25 @@ const CompetitionsPage: React.FC = () => {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {canFreeze && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleToggleFreeze(competition.id, competition.is_frozen)}
+                              title={competition.is_frozen ? 'Unfreeze competition' : 'Freeze competition'}
+                            >
+                              {competition.is_frozen ? (
+                                <><Unlock className="mr-1 h-4 w-4 text-emerald-600" />Unfreeze</>
+                              ) : (
+                                <><Snowflake className="mr-1 h-4 w-4 text-blue-600" />Freeze</>
+                              )}
+                            </Button>
+                          )}
+                          {!canFreeze && competition.is_frozen && (
+                            <Badge variant="outline" className="text-orange-600 border-orange-300">
+                              <Snowflake className="mr-1 h-3 w-3" />Frozen
+                            </Badge>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
