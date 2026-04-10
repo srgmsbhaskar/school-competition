@@ -187,6 +187,20 @@ const CompetitionsPage: React.FC = () => {
     }
   };
 
+  const handleToggleFreeze = async (competitionId: string, currentlyFrozen: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('competitions')
+        .update({ is_frozen: !currentlyFrozen })
+        .eq('id', competitionId);
+      if (error) throw error;
+      toast({ title: currentlyFrozen ? 'Competition Unfrozen' : 'Competition Frozen', description: currentlyFrozen ? 'Dept in-charges and teachers can now edit this competition.' : 'Dept in-charges and teachers can no longer edit this competition.' });
+      fetchCompetitions();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
   const getGradeLabel = (prize: string) => {
     return competitionGradeOptions.find(o => o.value === prize)?.label || '';
   };
