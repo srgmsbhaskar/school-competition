@@ -59,6 +59,19 @@ interface CompetitionItem {
   color: string;
 }
 
+export const AppSidebar: React.FC = () => {
+  const { role, signOut } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { department } = useParams<{ department: string }>();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/login');
+  };
+
+  const canChangePassword = role === 'coordinator' || role === 'department_incharge' || role === 'teacher';
+
   const adminMenuItems = [
     { title: 'Dashboard', icon: Home, path: '/admin' },
     { title: 'User Management', icon: UserPlus, path: '/admin/users' },
