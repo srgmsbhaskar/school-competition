@@ -59,44 +59,6 @@ interface CompetitionItem {
   color: string;
 }
 
-export const AppSidebar: React.FC = () => {
-  const { role, signOut } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { department } = useParams<{ department: string }>();
-  const [competitions, setCompetitions] = useState<CompetitionItem[]>([]);
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/login');
-  };
-
-  const canChangePassword = role === 'coordinator' || role === 'department_incharge' || role === 'teacher';
-
-  // Fetch competitions for dept in-charge sidebar
-  useEffect(() => {
-    if (role === 'department_incharge' && department) {
-      const fetchCompetitions = async () => {
-        const { data } = await supabase
-          .from('competitions')
-          .select('id, name')
-          .eq('department', department as 'external' | 'internal' | 'sports' | 'other')
-          .order('competition_date', { ascending: false });
-
-        if (data) {
-          setCompetitions(
-            data.map((c, i) => ({
-              id: c.id,
-              name: c.name,
-              color: competitionColors[i % competitionColors.length],
-            }))
-          );
-        }
-      };
-      fetchCompetitions();
-    }
-  }, [role, department]);
-
   const adminMenuItems = [
     { title: 'Dashboard', icon: Home, path: '/admin' },
     { title: 'User Management', icon: UserPlus, path: '/admin/users' },
