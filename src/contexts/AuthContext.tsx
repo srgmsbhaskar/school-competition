@@ -80,7 +80,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const fetchFreezeStatus = async () => {
+  const fetchFreezeStatus = async (userRole: AppRole | null) => {
+    // Admin and coordinator are never frozen at the academic year level
+    if (userRole === 'admin' || userRole === 'coordinator') {
+      setIsFrozen(false);
+      return;
+    }
     try {
       const { data } = await supabase
         .from('app_settings')
@@ -112,9 +117,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setAssignedDepartment(null);
             }
 
-            if (userRole === 'teacher') {
-              await fetchFreezeStatus();
-            }
+            // Check freeze for all non-admin/coordinator roles
+            await fetchFreezeStatus(userRole);
 
             setIsLoading(false);
           }, 0);
@@ -140,9 +144,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setAssignedDepartment(dept);
         }
 
-        if (userRole === 'teacher') {
-          await fetchFreezeStatus();
-        }
+        await fetchFreezeStatus(userRole);
       }
       setIsLoading(false);
     });

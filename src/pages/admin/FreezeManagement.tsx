@@ -54,7 +54,7 @@ const FreezeManagement: React.FC = () => {
       );
       if (error) throw error;
 
-      toast({ title: 'Year Frozen', description: `Academic year ${selectedYear} has been frozen. Teachers can only view reports.` });
+      toast({ title: 'Year Frozen', description: `Academic year ${selectedYear} has been frozen. All users except admin can only view reports.` });
       setSelectedYear('');
       fetchFrozenYears();
     } catch (error: any) {
@@ -94,8 +94,8 @@ const FreezeManagement: React.FC = () => {
               Freeze Academic Year
             </CardTitle>
             <CardDescription>
-              When an academic year is frozen, teachers will be blocked from all functions except viewing reports.
-              Coordinators and department in-charges are not affected.
+              When an academic year is frozen, <strong>all users except admin</strong> will be blocked from all functions except viewing/downloading reports.
+              Coordinators can additionally freeze individual competitions.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
