@@ -459,6 +459,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      log_audit: {
+        Args: { _action: string; _details?: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "coordinator" | "teacher" | "department_incharge"
