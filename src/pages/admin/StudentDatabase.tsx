@@ -72,8 +72,8 @@ const StudentDatabase: React.FC = () => {
     student.admission_no.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const sections = ['A', 'B', 'C', 'D', 'E', 'F'];
-  const classes = Array.from({ length: 12 }, (_, i) => i + 1);
+  const sections = [...new Set(students.map((s) => s.section))].sort();
+  const classes = [...new Set(students.map((s) => s.class))].sort((a, b) => a - b);
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => {
