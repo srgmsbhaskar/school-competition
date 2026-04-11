@@ -5,10 +5,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { FrozenOverlay } from "@/components/FrozenBanner";
 
 // Pages
 import Login from "./pages/Login";
-
 import ChangePassword from "./pages/ChangePassword";
 import NotFound from "./pages/NotFound";
 
@@ -79,6 +79,23 @@ const CoordinatorRoute = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
+/**
+ * Wrapper that shows a frozen overlay for non-admin users when the academic year is frozen.
+ * Admin users always pass through. Non-admin users see only a "System Frozen" page.
+ */
+const FreezeGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isFrozen, role, isLoading } = useAuth();
+
+  if (isLoading) return null;
+
+  // If frozen and not admin, show full-page overlay — nothing else is accessible
+  if (isFrozen && role !== 'admin') {
+    return <FrozenOverlay />;
+  }
+
+  return <>{children}</>;
+};
+
 const AppRoutes = () => {
   return (
     <Routes>
@@ -90,7 +107,7 @@ const AppRoutes = () => {
         </ProtectedRoute>
       } />
 
-      {/* Admin Routes */}
+      {/* Admin Routes — never frozen */}
       <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
       <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['admin']}><UserManagement /></ProtectedRoute>} />
       <Route path="/admin/students" element={<ProtectedRoute allowedRoles={['admin']}><StudentDatabase /></ProtectedRoute>} />
@@ -98,23 +115,19 @@ const AppRoutes = () => {
       <Route path="/admin/freeze" element={<ProtectedRoute allowedRoles={['admin']}><FreezeManagement /></ProtectedRoute>} />
       <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettings /></ProtectedRoute>} />
 
-      {/* Coordinator Dashboard */}
-      <Route path="/coordinator" element={<CoordinatorRoute><CoordinatorDashboard /></CoordinatorRoute>} />
+      {/* All non-admin routes go through FreezeGate */}
+      <Route path="/coordinator" element={<FreezeGate><CoordinatorRoute><CoordinatorDashboard /></CoordinatorRoute></FreezeGate>} />
+      <Route path="/coordinator/:department/competitions" element={<FreezeGate><CoordinatorRoute><CompetitionsPage /></CoordinatorRoute></FreezeGate>} />
+      <Route path="/coordinator/:department/events" element={<FreezeGate><CoordinatorRoute><EventsPage /></CoordinatorRoute></FreezeGate>} />
+      <Route path="/coordinator/:department/assign-teachers" element={<FreezeGate><CoordinatorRoute><AssignTeachers /></CoordinatorRoute></FreezeGate>} />
+      <Route path="/coordinator/:department/prizes" element={<FreezeGate><CoordinatorRoute><PrizesPage /></CoordinatorRoute></FreezeGate>} />
+      <Route path="/coordinator/:department/reports" element={<FreezeGate><CoordinatorRoute><ReportsPage /></CoordinatorRoute></FreezeGate>} />
+      <Route path="/coordinator/:department/select-students" element={<FreezeGate><CoordinatorRoute><CoordinatorSelectStudents /></CoordinatorRoute></FreezeGate>} />
 
-      {/* Coordinator Department Routes */}
-      <Route path="/coordinator/:department/competitions" element={<CoordinatorRoute><CompetitionsPage /></CoordinatorRoute>} />
-      <Route path="/coordinator/:department/events" element={<CoordinatorRoute><EventsPage /></CoordinatorRoute>} />
-      <Route path="/coordinator/:department/assign-teachers" element={<CoordinatorRoute><AssignTeachers /></CoordinatorRoute>} />
-      <Route path="/coordinator/:department/prizes" element={<CoordinatorRoute><PrizesPage /></CoordinatorRoute>} />
-      <Route path="/coordinator/:department/reports" element={<CoordinatorRoute><ReportsPage /></CoordinatorRoute>} />
-      <Route path="/coordinator/:department/select-students" element={<CoordinatorRoute><CoordinatorSelectStudents /></CoordinatorRoute>} />
+      <Route path="/teacher" element={<FreezeGate><ProtectedRoute allowedRoles={['teacher']}><TeacherDashboard /></ProtectedRoute></FreezeGate>} />
+      <Route path="/teacher/competitions" element={<FreezeGate><ProtectedRoute allowedRoles={['teacher']}><TeacherCompetitions /></ProtectedRoute></FreezeGate>} />
+      <Route path="/teacher/select-students" element={<FreezeGate><ProtectedRoute allowedRoles={['teacher']}><SelectStudents /></ProtectedRoute></FreezeGate>} />
 
-      {/* Teacher Routes */}
-      <Route path="/teacher" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherDashboard /></ProtectedRoute>} />
-      <Route path="/teacher/competitions" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherCompetitions /></ProtectedRoute>} />
-      <Route path="/teacher/select-students" element={<ProtectedRoute allowedRoles={['teacher']}><SelectStudents /></ProtectedRoute>} />
-
-      {/* Change Password */}
       <Route path="/change-password" element={
         <ProtectedRoute allowedRoles={['coordinator', 'department_incharge', 'teacher']}>
           <ChangePassword />
