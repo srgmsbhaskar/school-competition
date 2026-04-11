@@ -94,8 +94,8 @@ const FreezeManagement: React.FC = () => {
               Freeze Academic Year
             </CardTitle>
             <CardDescription>
-              When an academic year is frozen, <strong>all users except admin</strong> will be blocked from all functions except viewing/downloading reports.
-              Coordinators can additionally freeze individual competitions.
+              When an academic year is frozen, <strong>nothing is visible or accessible</strong> to any user except admin.
+              All coordinators, dept in-charges, and teachers will see a "System Frozen" screen until unfrozen.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
