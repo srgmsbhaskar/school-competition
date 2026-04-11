@@ -5,11 +5,9 @@ export const logAudit = async (action: string, details?: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    await (supabase as any).from('audit_logs').insert({
-      user_id: user.id,
-      user_email: user.email,
-      action,
-      details,
+    await supabase.rpc('log_audit' as any, {
+      _action: action,
+      _details: details || null,
     });
   } catch (e) {
     console.error('Audit log error:', e);
