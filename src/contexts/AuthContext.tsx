@@ -81,8 +81,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const fetchFreezeStatus = async (userRole: AppRole | null) => {
-    // Admin and coordinator are never frozen at the academic year level
-    if (userRole === 'admin' || userRole === 'coordinator') {
+    // Only admin is exempt from freeze
+    if (userRole === 'admin') {
       setIsFrozen(false);
       return;
     }
@@ -117,9 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setAssignedDepartment(null);
             }
 
-            // Check freeze for all non-admin/coordinator roles
             await fetchFreezeStatus(userRole);
-
             setIsLoading(false);
           }, 0);
         } else {
