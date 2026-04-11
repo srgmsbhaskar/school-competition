@@ -25,6 +25,8 @@ interface Student {
 
 const StudentDatabase: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
+  const [allSections, setAllSections] = useState<string[]>([]);
+  const [allClasses, setAllClasses] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedClass, setSelectedClass] = useState<string>('all');
   const [selectedSection, setSelectedSection] = useState<string>('all');
@@ -35,6 +37,17 @@ const StudentDatabase: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
+
+  // Fetch distinct sections and classes from DB
+  const fetchFilterOptions = async () => {
+    try {
+      const { data } = await supabase.from('students').select('class, section');
+      if (data) {
+        setAllClasses([...new Set(data.map((s) => s.class))].sort((a, b) => a - b));
+        setAllSections([...new Set(data.map((s) => s.section))].sort());
+      }
+    } catch {}
+  };
 
   const fetchStudents = async () => {
     setIsLoading(true);
@@ -64,6 +77,10 @@ const StudentDatabase: React.FC = () => {
   };
 
   useEffect(() => {
+    fetchFilterOptions();
+  }, []);
+
+  useEffect(() => {
     fetchStudents();
   }, [selectedClass, selectedSection, selectedYear]);
 
@@ -72,8 +89,8 @@ const StudentDatabase: React.FC = () => {
     student.admission_no.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const sections = ['A', 'B', 'C', 'D', 'E', 'F'];
-  const classes = Array.from({ length: 12 }, (_, i) => i + 1);
+  const sections = allSections;
+  const classes = allClasses;
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => {
