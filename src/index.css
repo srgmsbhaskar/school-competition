@@ -8,8 +8,8 @@
 
 @layer base {
   :root {
-    /* Core backgrounds */
-    --background: 210 20% 98%;
+    /* Core backgrounds — Baby Blue #89CFF0 */
+    --background: 199 77% 90%;
     --foreground: 220 25% 10%;
 
     /* Cards and surfaces */
