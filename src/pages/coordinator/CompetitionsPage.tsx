@@ -223,7 +223,7 @@ const CompetitionsPage: React.FC = () => {
 
   return (
     <DashboardLayout title={`${departmentLabel} - Competitions`}>
-      <div className="space-y-6 animate-fade-in">
+      <div className="space-y-6 animate-fade-in min-h-screen p-4 -m-4 rounded-lg bg-blue-50/50">
         <div className="flex items-center justify-between">
           <p className="text-muted-foreground">
             Manage {departmentLabel.toLowerCase()} competitions and their events
