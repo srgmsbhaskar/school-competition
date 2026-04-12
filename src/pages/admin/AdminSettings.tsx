@@ -4,10 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Save, Loader2, Download, Upload, AlertTriangle } from 'lucide-react';
+import { Save, Loader2, Download, Upload, AlertTriangle, Sun, Moon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Switch } from '@/components/ui/switch';
 
 const AdminSettings: React.FC = () => {
   const [googleDrivePath, setGoogleDrivePath] = useState('');
@@ -15,6 +16,9 @@ const AdminSettings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    return localStorage.getItem('theme') === 'dark' || document.documentElement.classList.contains('dark');
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -31,6 +35,17 @@ const AdminSettings: React.FC = () => {
     };
     fetchSettings();
   }, []);
+
+  const handleToggleTheme = (dark: boolean) => {
+    setIsDarkMode(dark);
+    if (dark) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  };
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -103,6 +118,26 @@ const AdminSettings: React.FC = () => {
   return (
     <DashboardLayout title="System Settings">
       <div className="space-y-6 animate-fade-in max-w-2xl">
+        {/* Theme Toggle */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Appearance</CardTitle>
+            <CardDescription>Switch between Baby Blue theme and Dark mode</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {isDarkMode ? <Moon className="h-5 w-5 text-muted-foreground" /> : <Sun className="h-5 w-5 text-amber-500" />}
+                <div>
+                  <p className="font-medium text-sm">{isDarkMode ? 'Dark Mode' : 'Baby Blue Theme'}</p>
+                  <p className="text-xs text-muted-foreground">{isDarkMode ? 'Dark background for low-light use' : 'Light baby blue background'}</p>
+                </div>
+              </div>
+              <Switch checked={isDarkMode} onCheckedChange={handleToggleTheme} />
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Storage Settings</CardTitle>
