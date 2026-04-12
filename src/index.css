@@ -9,7 +9,7 @@
 @layer base {
   :root {
     /* Core backgrounds — Baby Blue #89CFF0 */
-    --background: 199 77% 90%;
+    --background: 199 77% 82%;
     --foreground: 220 25% 10%;
 
     /* Cards and surfaces */
