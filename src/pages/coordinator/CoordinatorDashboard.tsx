@@ -111,6 +111,7 @@ const CoordinatorDashboard: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+    </DashboardLayout>
   );
 };
 
