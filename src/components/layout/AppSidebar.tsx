@@ -162,6 +162,14 @@ export const AppSidebar: React.FC = () => {
 
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-4 space-y-2">
+        {role === 'department_incharge' && (
+          <a href="/guides/dept_incharge_guide.pdf" download>
+            <Button variant="ghost" className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+              <Download className="mr-2 h-4 w-4" />
+              User Guide
+            </Button>
+          </a>
+        )}
         {canChangePassword && (
           <Button
             variant="ghost"
