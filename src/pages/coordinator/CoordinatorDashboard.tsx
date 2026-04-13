@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Trophy, Dumbbell, Globe, MoreHorizontal } from 'lucide-react';
+import { Trophy, Dumbbell, Globe, MoreHorizontal, FileText, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -96,8 +96,21 @@ const CoordinatorDashboard: React.FC = () => {
             </Card>
           ))}
         </div>
+
+        {/* User Guide */}
+        <Card>
+          <CardContent className="py-4">
+            <a href="/guides/coordinator_guide.pdf" download className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+              <FileText className="h-8 w-8 text-primary" />
+              <div className="flex-1">
+                <p className="font-medium text-sm">Coordinator User Guide</p>
+                <p className="text-xs text-muted-foreground">Download PDF guide with step-by-step instructions</p>
+              </div>
+              <Download className="h-4 w-4 text-muted-foreground" />
+            </a>
+          </CardContent>
+        </Card>
       </div>
-    </DashboardLayout>
   );
 };
 
