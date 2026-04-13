@@ -28,6 +28,7 @@ import {
   ArrowLeft,
   Lock,
   Snowflake,
+  Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
