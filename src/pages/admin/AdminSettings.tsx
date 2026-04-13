@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Save, Loader2, Download, Upload, AlertTriangle, Sun, Moon } from 'lucide-react';
+import { Save, Loader2, Download, Upload, AlertTriangle, Sun, Moon, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -189,6 +189,38 @@ const AdminSettings: React.FC = () => {
               </AlertDialog>
             </div>
             <p className="text-xs text-muted-foreground">Backup includes: students, competitions, events, participations, prizes, and teacher assignments</p>
+          </CardContent>
+        </Card>
+
+        {/* User Guides */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />User Guides</CardTitle>
+            <CardDescription>Download PDF guides for each user role with step-by-step instructions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                { label: 'Admin Guide', file: 'admin_guide.pdf', desc: 'Dashboard, users, students, settings' },
+                { label: 'Coordinator Guide', file: 'coordinator_guide.pdf', desc: 'Competitions, events, teachers, prizes' },
+                { label: 'Dept In-Charge Guide', file: 'dept_incharge_guide.pdf', desc: 'Department-scoped management' },
+                { label: 'Teacher Guide', file: 'teacher_guide.pdf', desc: 'Competitions, student selection' },
+              ].map((guide) => (
+                <a
+                  key={guide.file}
+                  href={`/guides/${guide.file}`}
+                  download
+                  className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent transition-colors"
+                >
+                  <FileText className="h-8 w-8 text-primary shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">{guide.label}</p>
+                    <p className="text-xs text-muted-foreground">{guide.desc}</p>
+                  </div>
+                  <Download className="h-4 w-4 ml-auto text-muted-foreground shrink-0" />
+                </a>
+              ))}
+            </div>
           </CardContent>
         </Card>
 

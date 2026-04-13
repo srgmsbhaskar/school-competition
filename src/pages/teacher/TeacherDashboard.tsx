@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Trophy, Calendar, MapPin } from 'lucide-react';
+import { Trophy, Calendar, MapPin, FileText, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { FrozenBanner } from '@/components/FrozenBanner';
 
 interface AssignedCompetition {
@@ -129,6 +130,20 @@ const TeacherDashboard: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* User Guide */}
+        <Card>
+          <CardContent className="py-4">
+            <a href="/guides/teacher_guide.pdf" download className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+              <FileText className="h-8 w-8 text-primary" />
+              <div className="flex-1">
+                <p className="font-medium text-sm">Teacher User Guide</p>
+                <p className="text-xs text-muted-foreground">Download PDF guide with step-by-step instructions</p>
+              </div>
+              <Download className="h-4 w-4 text-muted-foreground" />
+            </a>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );
