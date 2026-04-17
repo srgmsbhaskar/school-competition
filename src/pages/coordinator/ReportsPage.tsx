@@ -69,8 +69,17 @@ const ReportsPage: React.FC = () => {
 
   const fetchParticipationReport = async () => {
     setIsLoading(true);
-    const { data } = await supabase.from('student_participations').select(`id, prize, certificate_url, student:students(name, admission_no, class, section), event:events(name, event_type)`).eq('competition_id', selectedCompetition);
-    const report: ParticipationReport[] = (data || []).map((p: any) => ({
+    const { rows: data, truncated } = await fetchPaginated<any>((from, to) =>
+      supabase
+        .from('student_participations')
+        .select(`id, prize, certificate_url, student:students(name, admission_no, class, section), event:events(name, event_type)`)
+        .eq('competition_id', selectedCompetition)
+        .range(from, to),
+    );
+    if (truncated) {
+      toast({ title: 'Showing first 3000 records', description: 'Report capped at 3000 rows per academic year.' });
+    }
+    const report: ParticipationReport[] = data.map((p: any) => ({
       id: p.id, student_name: p.student?.name || '', admission_no: p.student?.admission_no || '', class: p.student?.class || 0, section: p.student?.section || '', event_name: p.event?.name || '', event_type: p.event?.event_type || 'solo', prize: p.prize, certificate_url: p.certificate_url,
     }));
     setParticipations(report);
@@ -82,10 +91,20 @@ const ReportsPage: React.FC = () => {
     const competitionIds = (deptCompetitions || []).map((c) => c.id);
     if (competitionIds.length === 0) { setPrizeWinners([]); return; }
 
-    const { data } = await supabase.from('student_participations').select(`prize, certificate_url, student:students(id, name, admission_no, class, section), event:events(name), competition:competitions(name)`).not('prize', 'is', null).in('competition_id', competitionIds);
+    const { rows: data, truncated } = await fetchPaginated<any>((from, to) =>
+      supabase
+        .from('student_participations')
+        .select(`prize, certificate_url, student:students(id, name, admission_no, class, section), event:events(name), competition:competitions(name)`)
+        .not('prize', 'is', null)
+        .in('competition_id', competitionIds)
+        .range(from, to),
+    );
+    if (truncated) {
+      toast({ title: 'Showing first 3000 records', description: 'Prize winners capped at 3000 rows per academic year.' });
+    }
 
     const winnersMap = new Map<string, PrizeWinner>();
-    (data || []).forEach((p: any) => {
+    data.forEach((p: any) => {
       const studentId = p.student?.id;
       if (!studentId) return;
       if (!winnersMap.has(studentId)) {
