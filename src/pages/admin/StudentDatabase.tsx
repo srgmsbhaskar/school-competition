@@ -279,7 +279,7 @@ const StudentDatabase: React.FC = () => {
           </CardHeader>
           <CardContent>
             {truncated && (
-              <div className="mb-4 rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-900 dark:text-yellow-200">
+              <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">
                 Showing the first 3000 records. Narrow filters (class / section / year) to see more.
               </div>
             )}
