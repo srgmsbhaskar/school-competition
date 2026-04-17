@@ -21,6 +21,26 @@ const prizeRanking: Record<string, number> = {
   winner: 15, runner_up_1: 12, runner_up_2: 10, first: 9, second: 8, third: 5, consolation: 3,
 };
 
+// Reports are capped at 3000 rows per academic year to keep exports performant.
+const REPORT_ROW_CAP = 3000;
+const PAGE_SIZE_DB = 1000;
+
+/** Fetch up to REPORT_ROW_CAP rows by paginating through Supabase's 1000-row limit. */
+async function fetchPaginated<T = any>(
+  buildQuery: (from: number, to: number) => any,
+): Promise<{ rows: T[]; truncated: boolean }> {
+  const all: T[] = [];
+  for (let from = 0; from < REPORT_ROW_CAP; from += PAGE_SIZE_DB) {
+    const to = Math.min(from + PAGE_SIZE_DB - 1, REPORT_ROW_CAP - 1);
+    const { data, error } = await buildQuery(from, to);
+    if (error) break;
+    const batch = (data || []) as T[];
+    all.push(...batch);
+    if (batch.length < to - from + 1) return { rows: all, truncated: false };
+  }
+  return { rows: all, truncated: all.length >= REPORT_ROW_CAP };
+}
+
 const ReportsPage: React.FC = () => {
   const { department, departmentLabel } = useDepartment();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
