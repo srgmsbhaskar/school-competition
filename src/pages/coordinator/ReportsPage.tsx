@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { exportToPDF, exportToExcel, type PageSize } from '@/lib/exportUtils';
 import { format } from 'date-fns';
 import { useDepartment } from '@/hooks/useDepartment';
+import { toast } from '@/hooks/use-toast';
 
 interface Competition { id: string; name: string; competition_date: string; venue: string; }
 interface ParticipationReport { id: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; event_type: string; prize: string | null; certificate_url: string | null; }
@@ -20,6 +21,26 @@ interface PrizeWinner { student_name: string; admission_no: string; class: numbe
 const prizeRanking: Record<string, number> = {
   winner: 15, runner_up_1: 12, runner_up_2: 10, first: 9, second: 8, third: 5, consolation: 3,
 };
+
+// Reports are capped at 3000 rows per academic year to keep exports performant.
+const REPORT_ROW_CAP = 3000;
+const PAGE_SIZE_DB = 1000;
+
+/** Fetch up to REPORT_ROW_CAP rows by paginating through Supabase's 1000-row limit. */
+async function fetchPaginated<T = any>(
+  buildQuery: (from: number, to: number) => any,
+): Promise<{ rows: T[]; truncated: boolean }> {
+  const all: T[] = [];
+  for (let from = 0; from < REPORT_ROW_CAP; from += PAGE_SIZE_DB) {
+    const to = Math.min(from + PAGE_SIZE_DB - 1, REPORT_ROW_CAP - 1);
+    const { data, error } = await buildQuery(from, to);
+    if (error) break;
+    const batch = (data || []) as T[];
+    all.push(...batch);
+    if (batch.length < to - from + 1) return { rows: all, truncated: false };
+  }
+  return { rows: all, truncated: all.length >= REPORT_ROW_CAP };
+}
 
 const ReportsPage: React.FC = () => {
   const { department, departmentLabel } = useDepartment();
@@ -48,8 +69,17 @@ const ReportsPage: React.FC = () => {
 
   const fetchParticipationReport = async () => {
     setIsLoading(true);
-    const { data } = await supabase.from('student_participations').select(`id, prize, certificate_url, student:students(name, admission_no, class, section), event:events(name, event_type)`).eq('competition_id', selectedCompetition);
-    const report: ParticipationReport[] = (data || []).map((p: any) => ({
+    const { rows: data, truncated } = await fetchPaginated<any>((from, to) =>
+      supabase
+        .from('student_participations')
+        .select(`id, prize, certificate_url, student:students(name, admission_no, class, section), event:events(name, event_type)`)
+        .eq('competition_id', selectedCompetition)
+        .range(from, to),
+    );
+    if (truncated) {
+      toast({ title: 'Showing first 3000 records', description: 'Report capped at 3000 rows per academic year.' });
+    }
+    const report: ParticipationReport[] = data.map((p: any) => ({
       id: p.id, student_name: p.student?.name || '', admission_no: p.student?.admission_no || '', class: p.student?.class || 0, section: p.student?.section || '', event_name: p.event?.name || '', event_type: p.event?.event_type || 'solo', prize: p.prize, certificate_url: p.certificate_url,
     }));
     setParticipations(report);
@@ -61,10 +91,20 @@ const ReportsPage: React.FC = () => {
     const competitionIds = (deptCompetitions || []).map((c) => c.id);
     if (competitionIds.length === 0) { setPrizeWinners([]); return; }
 
-    const { data } = await supabase.from('student_participations').select(`prize, certificate_url, student:students(id, name, admission_no, class, section), event:events(name), competition:competitions(name)`).not('prize', 'is', null).in('competition_id', competitionIds);
+    const { rows: data, truncated } = await fetchPaginated<any>((from, to) =>
+      supabase
+        .from('student_participations')
+        .select(`prize, certificate_url, student:students(id, name, admission_no, class, section), event:events(name), competition:competitions(name)`)
+        .not('prize', 'is', null)
+        .in('competition_id', competitionIds)
+        .range(from, to),
+    );
+    if (truncated) {
+      toast({ title: 'Showing first 3000 records', description: 'Prize winners capped at 3000 rows per academic year.' });
+    }
 
     const winnersMap = new Map<string, PrizeWinner>();
-    (data || []).forEach((p: any) => {
+    data.forEach((p: any) => {
       const studentId = p.student?.id;
       if (!studentId) return;
       if (!winnersMap.has(studentId)) {
