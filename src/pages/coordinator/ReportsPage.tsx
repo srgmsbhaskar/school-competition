@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { exportToPDF, exportToExcel, type PageSize } from '@/lib/exportUtils';
 import { format } from 'date-fns';
 import { useDepartment } from '@/hooks/useDepartment';
+import { toast } from '@/hooks/use-toast';
 
 interface Competition { id: string; name: string; competition_date: string; venue: string; }
 interface ParticipationReport { id: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; event_type: string; prize: string | null; certificate_url: string | null; }
