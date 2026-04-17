@@ -23,6 +23,10 @@ interface Student {
   academic_year: string;
 }
 
+// Cap student listing at 3000 rows per academic year (3 batches of 1000).
+const ROW_CAP = 3000;
+const PAGE_SIZE = 1000;
+
 const StudentDatabase: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [allSections, setAllSections] = useState<string[]>([]);
@@ -36,38 +40,54 @@ const StudentDatabase: React.FC = () => {
   const [editForm, setEditForm] = useState({ name: '', admission_no: '', dob: '', section: '', s_no: 0 });
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [truncated, setTruncated] = useState(false);
   const { toast } = useToast();
+
+  /** Paginate through Supabase's 1000-row limit up to ROW_CAP. */
+  const fetchPaginated = async <T,>(
+    build: (from: number, to: number) => any,
+  ): Promise<{ rows: T[]; truncated: boolean }> => {
+    const all: T[] = [];
+    for (let from = 0; from < ROW_CAP; from += PAGE_SIZE) {
+      const to = Math.min(from + PAGE_SIZE - 1, ROW_CAP - 1);
+      const { data, error } = await build(from, to);
+      if (error) throw error;
+      const batch = (data || []) as T[];
+      all.push(...batch);
+      if (batch.length < to - from + 1) return { rows: all, truncated: false };
+    }
+    return { rows: all, truncated: all.length >= ROW_CAP };
+  };
 
   // Fetch distinct sections and classes from DB
   const fetchFilterOptions = async () => {
     try {
-      const { data } = await supabase.from('students').select('class, section');
-      if (data) {
-        setAllClasses([...new Set(data.map((s) => s.class))].sort((a, b) => a - b));
-        setAllSections([...new Set(data.map((s) => s.section))].sort());
-      }
+      const { rows } = await fetchPaginated<{ class: number; section: string }>((from, to) =>
+        supabase.from('students').select('class, section').range(from, to),
+      );
+      setAllClasses([...new Set(rows.map((s) => s.class))].sort((a, b) => a - b));
+      setAllSections([...new Set(rows.map((s) => s.section))].sort());
     } catch {}
   };
 
   const fetchStudents = async () => {
     setIsLoading(true);
     try {
-      let query = supabase.from('students').select('*').order('class').order('section').order('s_no');
-
-      if (selectedClass !== 'all') {
-        query = query.eq('class', parseInt(selectedClass));
-      }
-      if (selectedSection !== 'all') {
-        query = query.eq('section', selectedSection);
-      }
-      if (selectedYear !== 'all') {
-        query = query.eq('academic_year', selectedYear);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      setStudents(data || []);
+      const { rows, truncated: wasTruncated } = await fetchPaginated<Student>((from, to) => {
+        let q = supabase
+          .from('students')
+          .select('*')
+          .order('class')
+          .order('section')
+          .order('s_no')
+          .range(from, to);
+        if (selectedClass !== 'all') q = q.eq('class', parseInt(selectedClass));
+        if (selectedSection !== 'all') q = q.eq('section', selectedSection);
+        if (selectedYear !== 'all') q = q.eq('academic_year', selectedYear);
+        return q;
+      });
+      setStudents(rows);
+      setTruncated(wasTruncated);
     } catch (error) {
       console.error('Error fetching students:', error);
       toast({ title: 'Error', description: 'Failed to load students', variant: 'destructive' });
@@ -258,6 +278,11 @@ const StudentDatabase: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {truncated && (
+              <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">
+                Showing the first 3000 records. Narrow filters (class / section / year) to see more.
+              </div>
+            )}
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
