@@ -278,6 +278,11 @@ const StudentDatabase: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {truncated && (
+              <div className="mb-4 rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-900 dark:text-yellow-200">
+                Showing the first 3000 records. Narrow filters (class / section / year) to see more.
+              </div>
+            )}
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
