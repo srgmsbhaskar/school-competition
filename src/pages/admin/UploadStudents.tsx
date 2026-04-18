@@ -59,30 +59,42 @@ const UploadPage: React.FC = () => {
     }
 
     if (!selectedClass) {
-      toast({ title: 'Select Class First', description: 'Please select a class before uploading the CSV file', variant: 'destructive' });
+      toast({ title: 'Select Class First', description: 'Please select a class before uploading the Excel file', variant: 'destructive' });
       e.target.value = '';
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const text = event.target?.result as string;
-      const result = parseAndValidateCSV(text, parseInt(selectedClass));
-      
-      setCsvData(result.validRows);
-      setValidationErrors(result.errors);
-      setUploadStatus('idle');
+      try {
+        const data = event.target?.result;
+        const workbook = XLSX.read(data, { type: 'array', cellDates: false });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<(string | number | null)[]>(firstSheet, {
+          header: 1,
+          defval: '',
+          raw: true,
+        });
 
-      if (result.errors.length > 0) {
-        toast({ title: 'Validation Warnings', description: `${result.errors.length} row(s) have validation issues. ${result.validRows.length} valid rows ready for upload.`, variant: 'destructive' });
-      } else if (result.validRows.length > 0) {
-        toast({ title: 'File Parsed Successfully', description: `${result.validRows.length} students ready for upload` });
+        const result = parseAndValidateRows(rows as (string | number | null)[][], parseInt(selectedClass));
+
+        setCsvData(result.validRows);
+        setValidationErrors(result.errors);
+        setUploadStatus('idle');
+
+        if (result.errors.length > 0) {
+          toast({ title: 'Validation Warnings', description: `${result.errors.length} row(s) have validation issues. ${result.validRows.length} valid rows ready for upload.`, variant: 'destructive' });
+        } else if (result.validRows.length > 0) {
+          toast({ title: 'File Parsed Successfully', description: `${result.validRows.length} students ready for upload` });
+        }
+      } catch (err) {
+        toast({ title: 'Parse Error', description: 'Failed to read the Excel file', variant: 'destructive' });
       }
     };
     reader.onerror = () => {
-      toast({ title: 'File Read Error', description: 'Failed to read the CSV file', variant: 'destructive' });
+      toast({ title: 'File Read Error', description: 'Failed to read the Excel file', variant: 'destructive' });
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const handleStudentUpload = async () => {
