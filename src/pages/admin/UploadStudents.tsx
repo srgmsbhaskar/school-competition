@@ -10,8 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle, AlertTriangle, UserPlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import * as XLSX from 'xlsx';
 import { 
-  parseAndValidateCSV, 
+  parseAndValidateRows, 
   validateFile, 
   MAX_FILE_SIZE,
   type ValidatedStudentRow,
