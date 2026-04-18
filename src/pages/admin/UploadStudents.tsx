@@ -325,13 +325,13 @@ const UploadPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>CSV File</Label>
+                  <Label>Excel File</Label>
                   <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
                     <FileSpreadsheet className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                     <p className="text-sm text-muted-foreground mb-4">
-                      Upload a CSV file with columns: S No, Admission No, Name, DOB (YYYY-MM-DD), Section
+                      Upload an Excel file (.xlsx / .xls) with columns: S No, Admission No, Name, DOB, Section
                     </p>
-                    <Input type="file" accept=".csv" onChange={handleFileUpload} className="max-w-xs mx-auto" />
+                    <Input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} className="max-w-xs mx-auto" />
                   </div>
                 </div>
 
