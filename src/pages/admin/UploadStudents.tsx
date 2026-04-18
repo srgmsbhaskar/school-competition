@@ -10,8 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle, AlertTriangle, UserPlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import * as XLSX from 'xlsx';
 import { 
-  parseAndValidateCSV, 
+  parseAndValidateRows, 
   validateFile, 
   MAX_FILE_SIZE,
   type ValidatedStudentRow,
@@ -58,30 +59,42 @@ const UploadPage: React.FC = () => {
     }
 
     if (!selectedClass) {
-      toast({ title: 'Select Class First', description: 'Please select a class before uploading the CSV file', variant: 'destructive' });
+      toast({ title: 'Select Class First', description: 'Please select a class before uploading the Excel file', variant: 'destructive' });
       e.target.value = '';
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const text = event.target?.result as string;
-      const result = parseAndValidateCSV(text, parseInt(selectedClass));
-      
-      setCsvData(result.validRows);
-      setValidationErrors(result.errors);
-      setUploadStatus('idle');
+      try {
+        const data = event.target?.result;
+        const workbook = XLSX.read(data, { type: 'array', cellDates: false });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<(string | number | null)[]>(firstSheet, {
+          header: 1,
+          defval: '',
+          raw: true,
+        });
 
-      if (result.errors.length > 0) {
-        toast({ title: 'Validation Warnings', description: `${result.errors.length} row(s) have validation issues. ${result.validRows.length} valid rows ready for upload.`, variant: 'destructive' });
-      } else if (result.validRows.length > 0) {
-        toast({ title: 'File Parsed Successfully', description: `${result.validRows.length} students ready for upload` });
+        const result = parseAndValidateRows(rows as (string | number | null)[][], parseInt(selectedClass));
+
+        setCsvData(result.validRows);
+        setValidationErrors(result.errors);
+        setUploadStatus('idle');
+
+        if (result.errors.length > 0) {
+          toast({ title: 'Validation Warnings', description: `${result.errors.length} row(s) have validation issues. ${result.validRows.length} valid rows ready for upload.`, variant: 'destructive' });
+        } else if (result.validRows.length > 0) {
+          toast({ title: 'File Parsed Successfully', description: `${result.validRows.length} students ready for upload` });
+        }
+      } catch (err) {
+        toast({ title: 'Parse Error', description: 'Failed to read the Excel file', variant: 'destructive' });
       }
     };
     reader.onerror = () => {
-      toast({ title: 'File Read Error', description: 'Failed to read the CSV file', variant: 'destructive' });
+      toast({ title: 'File Read Error', description: 'Failed to read the Excel file', variant: 'destructive' });
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const handleStudentUpload = async () => {
@@ -285,7 +298,7 @@ const UploadPage: React.FC = () => {
               <CardHeader>
                 <CardTitle>Upload Student Data</CardTitle>
                 <CardDescription>
-                  Upload a CSV file with student information for a specific class and academic year.
+                  Upload an Excel file (.xlsx or .xls) with student information for a specific class and academic year.
                   Maximum file size: {MAX_FILE_SIZE / (1024 * 1024)}MB
                 </CardDescription>
               </CardHeader>
@@ -312,13 +325,13 @@ const UploadPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>CSV File</Label>
+                  <Label>Excel File</Label>
                   <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
                     <FileSpreadsheet className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                     <p className="text-sm text-muted-foreground mb-4">
-                      Upload a CSV file with columns: S No, Admission No, Name, DOB (YYYY-MM-DD), Section
+                      Upload an Excel file (.xlsx / .xls) with columns: S No, Admission No, Name, DOB, Section
                     </p>
-                    <Input type="file" accept=".csv" onChange={handleFileUpload} className="max-w-xs mx-auto" />
+                    <Input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} className="max-w-xs mx-auto" />
                   </div>
                 </div>
 
