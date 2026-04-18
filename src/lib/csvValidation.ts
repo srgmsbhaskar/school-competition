@@ -160,6 +160,116 @@ export function parseAndValidateCSV(
 }
 
 /**
+ * Parse and validate rows already extracted from a spreadsheet (XLSX/XLS)
+ * Each row is an array of cell values in column order: S No, Admission No, Name, DOB, Section
+ */
+export function parseAndValidateRows(
+  rows: (string | number | null | undefined)[][],
+  selectedClass: number
+): ParseResult {
+  if (!rows || rows.length < 2) {
+    return {
+      validRows: [],
+      errors: [{ row: 0, field: 'file', message: 'File must have a header row and at least one data row' }],
+      totalRows: 0,
+    };
+  }
+
+  if (rows.length - 1 > MAX_ROWS) {
+    return {
+      validRows: [],
+      errors: [{ row: 0, field: 'file', message: `File exceeds maximum of ${MAX_ROWS} rows` }],
+      totalRows: rows.length - 1,
+    };
+  }
+
+  const headers = (rows[0] || []).map((h) => sanitizeCSVField(String(h ?? '')).toLowerCase());
+  const idx = (names: string[]) => {
+    for (const n of names) {
+      const i = headers.indexOf(n);
+      if (i !== -1) return i;
+    }
+    return -1;
+  };
+  const sNoIdx = idx(['s no', 'sno', 's.no', 's_no']);
+  const admIdx = idx(['admission no', 'admission_no', 'admission']);
+  const nameIdx = idx(['name']);
+  const dobIdx = idx(['dob', 'date of birth']);
+  const secIdx = idx(['sec', 'section']);
+
+  const validRows: ValidatedStudentRow[] = [];
+  const errors: ValidationError[] = [];
+
+  // Helper to convert Excel serial date or string to YYYY-MM-DD
+  const normalizeDate = (val: unknown): string => {
+    if (val == null || val === '') return '';
+    if (typeof val === 'number') {
+      // Excel serial date: days since 1899-12-30
+      const ms = Math.round((val - 25569) * 86400 * 1000);
+      const d = new Date(ms);
+      if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+    }
+    const s = String(val).trim();
+    // Already ISO
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    // DD/MM/YYYY or DD-MM-YYYY
+    const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (m) {
+      const dd = m[1].padStart(2, '0');
+      const mm = m[2].padStart(2, '0');
+      let yyyy = m[3];
+      if (yyyy.length === 2) yyyy = (parseInt(yyyy) > 50 ? '19' : '20') + yyyy;
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+    return s;
+  };
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.every((c) => c == null || String(c).trim() === '')) continue;
+
+    const get = (i2: number, fallback: number) => {
+      const raw = i2 !== -1 ? row[i2] : row[fallback];
+      return sanitizeCSVField(String(raw ?? ''));
+    };
+
+    const sNoStr = get(sNoIdx, 0);
+    const admission_no = get(admIdx, 1);
+    const name = get(nameIdx, 2);
+    const dobRaw = dobIdx !== -1 ? row[dobIdx] : row[3];
+    const dob = normalizeDate(dobRaw);
+    const section = get(secIdx, 4);
+
+    const s_no = parseInt(sNoStr) || i;
+
+    const result = studentRowSchema.safeParse({
+      s_no,
+      admission_no,
+      name,
+      dob,
+      class: selectedClass,
+      section,
+    });
+
+    if (result.success) {
+      validRows.push(result.data);
+    } else {
+      result.error.errors.forEach((err) => {
+        errors.push({
+          row: i + 1,
+          field: err.path.join('.') || 'unknown',
+          message: err.message,
+        });
+      });
+    }
+  }
+
+  return { validRows, errors, totalRows: rows.length - 1 };
+}
+
+/**
  * Validate file before processing
  */
 export function validateFile(file: File): { valid: boolean; error?: string } {
@@ -167,8 +277,9 @@ export function validateFile(file: File): { valid: boolean; error?: string } {
     return { valid: false, error: 'No file selected' };
   }
   
-  if (!file.name.toLowerCase().endsWith('.csv')) {
-    return { valid: false, error: 'File must be a CSV file' };
+  const lower = file.name.toLowerCase();
+  if (!lower.endsWith('.xlsx') && !lower.endsWith('.xls')) {
+    return { valid: false, error: 'File must be an Excel file (.xlsx or .xls)' };
   }
   
   if (file.size > MAX_FILE_SIZE) {
