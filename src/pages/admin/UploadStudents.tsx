@@ -298,7 +298,7 @@ const UploadPage: React.FC = () => {
               <CardHeader>
                 <CardTitle>Upload Student Data</CardTitle>
                 <CardDescription>
-                  Upload a CSV file with student information for a specific class and academic year.
+                  Upload an Excel file (.xlsx or .xls) with student information for a specific class and academic year.
                   Maximum file size: {MAX_FILE_SIZE / (1024 * 1024)}MB
                 </CardDescription>
               </CardHeader>
