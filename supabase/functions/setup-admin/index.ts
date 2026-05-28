@@ -20,9 +20,9 @@ Deno.serve(async (req) => {
 
     // Require a setup key to prevent unauthorized admin creation
     const expectedSetupKey = Deno.env.get('ADMIN_SETUP_KEY')
-    if (expectedSetupKey && setup_key !== expectedSetupKey) {
+    if (!expectedSetupKey || !setup_key || setup_key !== expectedSetupKey) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Invalid setup key' }),
+        JSON.stringify({ success: false, error: 'Invalid or missing setup key' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
