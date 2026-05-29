@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useDepartment } from '@/hooks/useDepartment';
-import { scopeToAcademicYear } from '@/lib/academicYear';
+import { forceAcademicYear } from '@/lib/academicYear';
 
 interface Competition { id: string; name: string; }
 interface Event { id: string; name: string; event_type: 'solo' | 'group'; classes: number[]; }
@@ -45,12 +45,11 @@ const CoordinatorSelectStudents: React.FC = () => {
 
   useEffect(() => {
     const fetchCompetitions = async () => {
-      const { data } = await scopeToAcademicYear(
+      const { data } = await forceAcademicYear(
         supabase
           .from('competitions')
           .select('id, name, competition_date')
           .eq('department', department),
-        role,
         academicYear,
       ).order('competition_date', { ascending: false });
       setCompetitions(data || []);
