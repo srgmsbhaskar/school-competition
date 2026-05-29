@@ -13,6 +13,8 @@ import { exportToPDF, exportToExcel, type PageSize } from '@/lib/exportUtils';
 import { format } from 'date-fns';
 import { useDepartment } from '@/hooks/useDepartment';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { scopeToAcademicYear, getAcademicYearRange } from '@/lib/academicYear';
 
 interface Competition { id: string; name: string; competition_date: string; venue: string; }
 interface ParticipationReport { id: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; event_type: string; prize: string | null; certificate_url: string | null; }
@@ -44,6 +46,7 @@ async function fetchPaginated<T = any>(
 
 const ReportsPage: React.FC = () => {
   const { department, departmentLabel } = useDepartment();
+  const { role, academicYear } = useAuth();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [selectedCompetition, setSelectedCompetition] = useState<string>('');
   const [participations, setParticipations] = useState<ParticipationReport[]>([]);
@@ -54,12 +57,16 @@ const ReportsPage: React.FC = () => {
 
   useEffect(() => {
     const fetchCompetitions = async () => {
-      const { data } = await supabase.from('competitions').select('id, name, competition_date, venue').eq('department', department).order('competition_date', { ascending: false });
+      const { data } = await scopeToAcademicYear(
+        supabase.from('competitions').select('id, name, competition_date, venue').eq('department', department),
+        role,
+        academicYear,
+      ).order('competition_date', { ascending: false });
       setCompetitions(data || []);
       setIsLoading(false);
     };
     fetchCompetitions();
-  }, [department]);
+  }, [department, role, academicYear]);
 
   useEffect(() => {
     if (selectedCompetition) fetchParticipationReport();
