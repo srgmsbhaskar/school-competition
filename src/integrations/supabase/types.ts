@@ -444,6 +444,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_manage_certificate_path: { Args: { _name: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
