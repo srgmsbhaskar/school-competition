@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { FrozenBanner } from '@/components/FrozenBanner';
+import { scopeToAcademicYear } from '@/lib/academicYear';
 
 interface Competition {
   id: string;
@@ -43,7 +44,7 @@ const SelectStudents: React.FC = () => {
   const [searchParams] = useSearchParams();
   const initialCompetitionId = searchParams.get('competition');
   
-  const { user, academicYear, isFrozen } = useAuth();
+  const { user, academicYear, isFrozen, role } = useAuth();
   const { toast } = useToast();
   
   const [competitions, setCompetitions] = useState<Competition[]>([]);
