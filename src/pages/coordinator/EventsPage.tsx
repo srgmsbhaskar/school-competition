@@ -16,7 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDepartment } from '@/hooks/useDepartment';
-import { scopeToAcademicYear } from '@/lib/academicYear';
+import { forceAcademicYear } from '@/lib/academicYear';
 
 interface Competition {
   id: string;
