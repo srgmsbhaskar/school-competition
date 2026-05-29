@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDepartment } from '@/hooks/useDepartment';
-import { scopeToAcademicYear } from '@/lib/academicYear';
+import { forceAcademicYear } from '@/lib/academicYear';
 
 interface Competition { id: string; name: string; is_completed: boolean; }
 interface Event { id: string; name: string; competition_id: string; event_type: 'solo' | 'group'; }
@@ -52,9 +52,8 @@ const PrizesPage: React.FC = () => {
 
   useEffect(() => {
     const fetchCompetitions = async () => {
-      const { data } = await scopeToAcademicYear(
+      const { data } = await forceAcademicYear(
         supabase.from('competitions').select('*').eq('department', department),
-        role,
         academicYear,
       ).order('competition_date', { ascending: false });
       setCompetitions(data || []);
