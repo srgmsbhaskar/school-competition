@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { FrozenBanner } from '@/components/FrozenBanner';
-import { scopeToAcademicYear } from '@/lib/academicYear';
+import { forceAcademicYear } from '@/lib/academicYear';
 
 interface Competition {
   id: string;
@@ -75,12 +75,11 @@ const SelectStudents: React.FC = () => {
 
       const competitionIds = [...new Set(assignments.map((a) => a.competition_id))];
 
-      const { data: competitionsData } = await scopeToAcademicYear(
+      const { data: competitionsData } = await forceAcademicYear(
         supabase
           .from('competitions')
           .select('id, name, competition_date')
           .in('id', competitionIds),
-        role,
         academicYear,
       );
 
