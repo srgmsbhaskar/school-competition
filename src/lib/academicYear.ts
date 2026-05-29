@@ -26,3 +26,18 @@ export function scopeToAcademicYear<T>(
   // @ts-expect-error - Supabase query builder methods are chainable
   return query.gte(column, start).lte(column, end);
 }
+
+/**
+ * Always restrict a Supabase query to the current academic year regardless of role.
+ * Use for dropdown selectors where only the active year is relevant (creation,
+ * student selection, prize award, teacher assignment, etc.).
+ */
+export function forceAcademicYear<T>(
+  query: T,
+  academicYear: string,
+  column = 'competition_date',
+): T {
+  const { start, end } = getAcademicYearRange(academicYear);
+  // @ts-expect-error - Supabase query builder methods are chainable
+  return query.gte(column, start).lte(column, end);
+}
