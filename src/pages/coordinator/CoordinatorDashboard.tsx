@@ -5,6 +5,7 @@ import { Trophy, Dumbbell, Globe, MoreHorizontal, FileText, Download } from 'luc
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { scopeToAcademicYear } from '@/lib/academicYear';
 
 interface DepartmentCard {
   key: string;
@@ -31,7 +32,7 @@ const departmentColors: Record<string, string> = {
 
 const CoordinatorDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { role, assignedDepartment } = useAuth();
+  const { role, assignedDepartment, academicYear } = useAuth();
   const [counts, setCounts] = useState<Record<string, number>>({
     external: 0, internal: 0, sports: 0, other: 0,
   });
@@ -44,7 +45,11 @@ const CoordinatorDashboard: React.FC = () => {
     }
 
     const fetchCounts = async () => {
-      const { data } = await supabase.from('competitions').select('department');
+      const { data } = await scopeToAcademicYear(
+        supabase.from('competitions').select('department, competition_date'),
+        role,
+        academicYear,
+      );
       if (data) {
         const c: Record<string, number> = { external: 0, internal: 0, sports: 0, other: 0 };
         data.forEach((row: any) => {
@@ -54,7 +59,7 @@ const CoordinatorDashboard: React.FC = () => {
       }
     };
     fetchCounts();
-  }, [role, assignedDepartment, navigate]);
+  }, [role, assignedDepartment, navigate, academicYear]);
 
   const departments: DepartmentCard[] = allDepartments.map((dept) => ({
     ...dept,

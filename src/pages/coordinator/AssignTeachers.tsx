@@ -10,6 +10,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useDepartment } from '@/hooks/useDepartment';
 import { logAudit } from '@/lib/auditLog';
+import { useAuth } from '@/contexts/AuthContext';
+import { scopeToAcademicYear } from '@/lib/academicYear';
 
 interface Competition { id: string; name: string; competition_date: string; }
 interface Teacher { id: string; email: string; full_name: string; }
@@ -18,6 +20,7 @@ interface DutyConflict { teacherName: string; competitionName: string; date: str
 
 const AssignTeachers: React.FC = () => {
   const { department, departmentLabel } = useDepartment();
+  const { role, academicYear } = useAuth();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -35,11 +38,19 @@ const AssignTeachers: React.FC = () => {
     setIsLoading(true);
     try {
       const [competitionsRes, profilesRes, rolesRes, allAssignmentsRes, allCompRes] = await Promise.all([
-        supabase.from('competitions').select('id, name, competition_date').eq('department', department).order('competition_date', { ascending: false }),
+        scopeToAcademicYear(
+          supabase.from('competitions').select('id, name, competition_date').eq('department', department),
+          role,
+          academicYear,
+        ).order('competition_date', { ascending: false }),
         supabase.from('profiles').select('id, email, full_name'),
         supabase.from('user_roles').select('*').eq('role', 'teacher'),
         supabase.from('teacher_assignments').select('*'),
-        supabase.from('competitions').select('id, name, competition_date'),
+        scopeToAcademicYear(
+          supabase.from('competitions').select('id, name, competition_date'),
+          role,
+          academicYear,
+        ),
       ]);
 
       setCompetitions(competitionsRes.data || []);

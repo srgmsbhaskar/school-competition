@@ -5,6 +5,7 @@ import { Trophy, Calendar, MapPin, FileText, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { scopeToAcademicYear } from '@/lib/academicYear';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FrozenBanner } from '@/components/FrozenBanner';
@@ -20,7 +21,7 @@ interface AssignedCompetition {
 
 const TeacherDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, role, academicYear } = useAuth();
   const [competitions, setCompetitions] = useState<AssignedCompetition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -43,11 +44,14 @@ const TeacherDashboard: React.FC = () => {
       const competitionIds = [...new Set(assignments.map((a) => a.competition_id))];
 
       // Get competition details
-      const { data: competitionsData } = await supabase
-        .from('competitions')
-        .select('*')
-        .in('id', competitionIds)
-        .order('competition_date', { ascending: false });
+      const { data: competitionsData } = await scopeToAcademicYear(
+        supabase
+          .from('competitions')
+          .select('*')
+          .in('id', competitionIds),
+        role,
+        academicYear,
+      ).order('competition_date', { ascending: false });
 
       const result: AssignedCompetition[] = (competitionsData || []).map((c) => ({
         ...c,

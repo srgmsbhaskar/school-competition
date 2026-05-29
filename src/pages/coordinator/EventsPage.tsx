@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDepartment } from '@/hooks/useDepartment';
+import { scopeToAcademicYear } from '@/lib/academicYear';
 
 interface Competition {
   id: string;
@@ -56,7 +57,7 @@ const EventsPage: React.FC = () => {
     classes: [] as number[],
   });
   const { toast } = useToast();
-  const { role } = useAuth();
+  const { role, academicYear } = useAuth();
   const canManage = role === 'admin' || role === 'coordinator' || role === 'department_incharge';
   const allClasses = Array.from({ length: 12 }, (_, i) => i + 1);
 
@@ -64,7 +65,11 @@ const EventsPage: React.FC = () => {
     setIsLoading(true);
     try {
       const [competitionsRes, categoriesRes] = await Promise.all([
-        supabase.from('competitions').select('id, name').eq('department', department).order('competition_date', { ascending: false }),
+        scopeToAcademicYear(
+          supabase.from('competitions').select('id, name, competition_date').eq('department', department),
+          role,
+          academicYear,
+        ).order('competition_date', { ascending: false }),
         supabase.from('categories').select('*'),
       ]);
 

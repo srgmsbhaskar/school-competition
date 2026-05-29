@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Trophy, Calendar, MapPin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { scopeToAcademicYear } from '@/lib/academicYear';
 
 interface Competition {
   id: string;
@@ -18,7 +19,7 @@ interface Competition {
 }
 
 const TeacherCompetitions: React.FC = () => {
-  const { user } = useAuth();
+  const { user, role, academicYear } = useAuth();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -39,11 +40,14 @@ const TeacherCompetitions: React.FC = () => {
 
       const competitionIds = [...new Set(assignments.map((a) => a.competition_id))];
 
-      const { data: competitionsData } = await supabase
-        .from('competitions')
-        .select('*')
-        .in('id', competitionIds)
-        .order('competition_date', { ascending: false });
+      const { data: competitionsData } = await scopeToAcademicYear(
+        supabase
+          .from('competitions')
+          .select('*')
+          .in('id', competitionIds),
+        role,
+        academicYear,
+      ).order('competition_date', { ascending: false });
 
       const { data: eventsData } = await supabase
         .from('events')
