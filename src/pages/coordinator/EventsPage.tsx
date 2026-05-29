@@ -65,9 +65,8 @@ const EventsPage: React.FC = () => {
     setIsLoading(true);
     try {
       const [competitionsRes, categoriesRes] = await Promise.all([
-        scopeToAcademicYear(
+        forceAcademicYear(
           supabase.from('competitions').select('id, name, competition_date').eq('department', department),
-          role,
           academicYear,
         ).order('competition_date', { ascending: false }),
         supabase.from('categories').select('*'),
