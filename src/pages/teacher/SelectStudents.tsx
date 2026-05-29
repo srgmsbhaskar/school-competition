@@ -74,10 +74,14 @@ const SelectStudents: React.FC = () => {
 
       const competitionIds = [...new Set(assignments.map((a) => a.competition_id))];
 
-      const { data: competitionsData } = await supabase
-        .from('competitions')
-        .select('id, name')
-        .in('id', competitionIds);
+      const { data: competitionsData } = await scopeToAcademicYear(
+        supabase
+          .from('competitions')
+          .select('id, name, competition_date')
+          .in('id', competitionIds),
+        role,
+        academicYear,
+      );
 
       setCompetitions(competitionsData || []);
 

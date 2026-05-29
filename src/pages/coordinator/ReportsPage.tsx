@@ -94,7 +94,11 @@ const ReportsPage: React.FC = () => {
   };
 
   const fetchPrizeWinners = async () => {
-    const { data: deptCompetitions } = await supabase.from('competitions').select('id').eq('department', department);
+    const { data: deptCompetitions } = await scopeToAcademicYear(
+      supabase.from('competitions').select('id, competition_date').eq('department', department),
+      role,
+      academicYear,
+    );
     const competitionIds = (deptCompetitions || []).map((c) => c.id);
     if (competitionIds.length === 0) { setPrizeWinners([]); return; }
 

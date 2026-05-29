@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDepartment } from '@/hooks/useDepartment';
+import { scopeToAcademicYear } from '@/lib/academicYear';
 
 interface Competition { id: string; name: string; is_completed: boolean; }
 interface Event { id: string; name: string; competition_id: string; event_type: 'solo' | 'group'; }
@@ -47,16 +48,20 @@ const PrizesPage: React.FC = () => {
   const [uploadingCertFor, setUploadingCertFor] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, role, academicYear } = useAuth();
 
   useEffect(() => {
     const fetchCompetitions = async () => {
-      const { data } = await supabase.from('competitions').select('*').eq('department', department).order('competition_date', { ascending: false });
+      const { data } = await scopeToAcademicYear(
+        supabase.from('competitions').select('*').eq('department', department),
+        role,
+        academicYear,
+      ).order('competition_date', { ascending: false });
       setCompetitions(data || []);
       setIsLoading(false);
     };
     fetchCompetitions();
-  }, [department]);
+  }, [department, role, academicYear]);
 
   useEffect(() => {
     if (selectedCompetition) {
