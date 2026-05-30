@@ -28,6 +28,7 @@ import AssignTeachers from "./pages/coordinator/AssignTeachers";
 import PrizesPage from "./pages/coordinator/PrizesPage";
 import ReportsPage from "./pages/coordinator/ReportsPage";
 import CoordinatorSelectStudents from "./pages/coordinator/SelectStudents";
+import CertificatesPage from "./pages/coordinator/CertificatesPage";
 
 // Teacher Pages
 import TeacherDashboard from "./pages/teacher/TeacherDashboard";
@@ -123,6 +124,7 @@ const AppRoutes = () => {
       <Route path="/coordinator/:department/prizes" element={<FreezeGate><CoordinatorRoute><PrizesPage /></CoordinatorRoute></FreezeGate>} />
       <Route path="/coordinator/:department/reports" element={<FreezeGate><CoordinatorRoute><ReportsPage /></CoordinatorRoute></FreezeGate>} />
       <Route path="/coordinator/:department/select-students" element={<FreezeGate><CoordinatorRoute><CoordinatorSelectStudents /></CoordinatorRoute></FreezeGate>} />
+      <Route path="/coordinator/:department/certificates" element={<FreezeGate><CoordinatorRoute><CertificatesPage /></CoordinatorRoute></FreezeGate>} />
 
       <Route path="/teacher" element={<FreezeGate><ProtectedRoute allowedRoles={['teacher']}><TeacherDashboard /></ProtectedRoute></FreezeGate>} />
       <Route path="/teacher/competitions" element={<FreezeGate><ProtectedRoute allowedRoles={['teacher']}><TeacherCompetitions /></ProtectedRoute></FreezeGate>} />

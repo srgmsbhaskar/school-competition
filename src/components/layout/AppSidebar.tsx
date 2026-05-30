@@ -29,6 +29,7 @@ import {
   Lock,
   Snowflake,
   Download,
+  FileBadge,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -76,6 +77,9 @@ export const AppSidebar: React.FC = () => {
         { title: 'Prizes', icon: Award, path: `/coordinator/${department}/prizes` },
         { title: 'Reports', icon: FileText, path: `/coordinator/${department}/reports` },
       );
+      if (department === 'internal') {
+        items.push({ title: 'Certificates', icon: FileBadge, path: `/coordinator/${department}/certificates` });
+      }
       return items;
     }
     return [
@@ -85,7 +89,7 @@ export const AppSidebar: React.FC = () => {
 
   const getDeptInchargeMenuItems = () => {
     if (!department) return [];
-    return [
+    const items = [
       { title: 'Competitions', icon: Trophy, path: `/coordinator/${department}/competitions` },
       { title: 'Events', icon: Calendar, path: `/coordinator/${department}/events` },
       { title: 'Assign Teachers', icon: ClipboardList, path: `/coordinator/${department}/assign-teachers` },
@@ -93,6 +97,10 @@ export const AppSidebar: React.FC = () => {
       { title: 'Prizes', icon: Award, path: `/coordinator/${department}/prizes` },
       { title: 'Reports', icon: FileText, path: `/coordinator/${department}/reports` },
     ];
+    if (department === 'internal') {
+      items.push({ title: 'Certificates', icon: FileBadge, path: `/coordinator/${department}/certificates` });
+    }
+    return items;
   };
 
   const teacherMenuItems = [
