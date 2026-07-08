@@ -323,13 +323,19 @@ const StudentDatabase: React.FC = () => {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Students ({filteredStudents.length})</CardTitle>
-            <CardDescription>
-              {selectedClass === 'all' ? 'All classes' : `Class ${selectedClass}`}
-              {selectedSection !== 'all' && ` - Section ${selectedSection}`}
-              {selectedYear !== 'all' && ` - ${selectedYear}`}
-            </CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Students ({filteredStudents.length})</CardTitle>
+              <CardDescription>
+                {selectedClass === 'all' ? 'All classes' : `Class ${selectedClass}`}
+                {selectedSection !== 'all' && ` - Section ${selectedSection}`}
+                {selectedYear !== 'all' && ` - ${selectedYear}`}
+              </CardDescription>
+            </div>
+            <Button size="sm" onClick={handleAddOpen}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Student
+            </Button>
           </CardHeader>
           <CardContent>
             {truncated && (
@@ -428,6 +434,62 @@ const StudentDatabase: React.FC = () => {
             <Button onClick={handleEditSave} disabled={isSaving}>
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Student Dialog */}
+      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Student</DialogTitle>
+            <DialogDescription>Enter the student's details.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="space-y-2 col-span-2">
+              <Label>Name</Label>
+              <Input value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Admission No.</Label>
+              <Input value={addForm.admission_no} onChange={(e) => setAddForm({ ...addForm, admission_no: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>S.No</Label>
+              <Input type="number" value={addForm.s_no} onChange={(e) => setAddForm({ ...addForm, s_no: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Date of Birth</Label>
+              <Input type="date" value={addForm.dob} onChange={(e) => setAddForm({ ...addForm, dob: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Class (1-12)</Label>
+              <Input type="number" min={1} max={12} value={addForm.class} onChange={(e) => setAddForm({ ...addForm, class: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Section</Label>
+              <Input value={addForm.section} onChange={(e) => setAddForm({ ...addForm, section: e.target.value })} placeholder="e.g. A" />
+            </div>
+            <div className="space-y-2">
+              <Label>Academic Year</Label>
+              <Select value={addForm.academic_year} onValueChange={(v) => setAddForm({ ...addForm, academic_year: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => (
+                    <SelectItem key={y} value={y}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddSave} disabled={isAdding}>
+              {isAdding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Add Student
             </Button>
           </DialogFooter>
         </DialogContent>
