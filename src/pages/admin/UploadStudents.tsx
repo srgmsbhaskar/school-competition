@@ -23,10 +23,12 @@ const UploadPage: React.FC = () => {
   // Student upload state
   const [academicYear, setAcademicYear] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
+  const [uploadMode, setUploadMode] = useState<'single' | 'all'>('single');
   const [csvData, setCsvData] = useState<ValidatedStudentRow[]>([]);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [lastUploadSummary, setLastUploadSummary] = useState<{ inserted: number; skipped: number } | null>(null);
   
   // Teacher individual state
   const [teacherName, setTeacherName] = useState('');
@@ -58,7 +60,7 @@ const UploadPage: React.FC = () => {
       return;
     }
 
-    if (!selectedClass) {
+    if (uploadMode === 'single' && !selectedClass) {
       toast({ title: 'Select Class First', description: 'Please select a class before uploading the Excel file', variant: 'destructive' });
       e.target.value = '';
       return;
@@ -76,7 +78,10 @@ const UploadPage: React.FC = () => {
           raw: true,
         });
 
-        const result = parseAndValidateRows(rows as (string | number | null)[][], parseInt(selectedClass));
+        const result = parseAndValidateRows(
+          rows as (string | number | null)[][],
+          uploadMode === 'single' ? parseInt(selectedClass) : null,
+        );
 
         setCsvData(result.validRows);
         setValidationErrors(result.errors);
@@ -98,28 +103,58 @@ const UploadPage: React.FC = () => {
   };
 
   const handleStudentUpload = async () => {
-    if (!academicYear || !selectedClass || csvData.length === 0) {
+    if (!academicYear || csvData.length === 0 || (uploadMode === 'single' && !selectedClass)) {
       toast({ title: 'Missing Information', description: 'Please select academic year, class, and upload a valid CSV file', variant: 'destructive' });
       return;
     }
 
     setIsUploading(true);
     try {
-      const studentsToInsert = csvData.map((row) => ({
+      const allStudents = csvData.map((row) => ({
         s_no: row.s_no,
         admission_no: row.admission_no,
         name: row.name,
         dob: row.dob,
-        class: parseInt(selectedClass),
+        class: uploadMode === 'single' ? parseInt(selectedClass) : row.class,
         section: row.section,
         academic_year: academicYear,
       }));
 
-      const { error } = await supabase.from('students').upsert(studentsToInsert, { onConflict: 'admission_no' });
-      if (error) throw error;
+      // Check for existing admission numbers in the target academic year to skip duplicates.
+      const admissionNos = [...new Set(allStudents.map((s) => s.admission_no))];
+      const existing = new Set<string>();
+      const CHUNK = 500;
+      for (let i = 0; i < admissionNos.length; i += CHUNK) {
+        const slice = admissionNos.slice(i, i + CHUNK);
+        const { data, error } = await supabase
+          .from('students')
+          .select('admission_no')
+          .eq('academic_year', academicYear)
+          .in('admission_no', slice);
+        if (error) throw error;
+        (data || []).forEach((r: { admission_no: string }) => existing.add(r.admission_no));
+      }
+
+      const seen = new Set<string>();
+      const toInsert = allStudents.filter((s) => {
+        if (existing.has(s.admission_no)) return false;
+        if (seen.has(s.admission_no)) return false;
+        seen.add(s.admission_no);
+        return true;
+      });
+      const skipped = allStudents.length - toInsert.length;
+
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from('students').insert(toInsert);
+        if (error) throw error;
+      }
 
       setUploadStatus('success');
-      toast({ title: 'Success', description: `${csvData.length} students uploaded successfully` });
+      setLastUploadSummary({ inserted: toInsert.length, skipped });
+      toast({
+        title: 'Upload Complete',
+        description: `${toInsert.length} added, ${skipped} duplicate(s) skipped`,
+      });
       setCsvData([]);
       setValidationErrors([]);
     } catch (error: unknown) {
