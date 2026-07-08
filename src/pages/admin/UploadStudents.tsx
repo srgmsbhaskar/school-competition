@@ -338,6 +338,16 @@ const UploadPage: React.FC = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label>Upload Mode</Label>
+                  <Select value={uploadMode} onValueChange={(v: 'single' | 'all') => { setUploadMode(v); setCsvData([]); setValidationErrors([]); setLastUploadSummary(null); }}>
+                    <SelectTrigger className="max-w-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="single">Single class (choose class below)</SelectItem>
+                      <SelectItem value="all">All classes at once (file must include a "Class" column)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Academic Year</Label>
@@ -348,9 +358,9 @@ const UploadPage: React.FC = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2" style={{ opacity: uploadMode === 'all' ? 0.5 : 1 }}>
                     <Label>Class</Label>
-                    <Select value={selectedClass} onValueChange={setSelectedClass}>
+                    <Select value={selectedClass} onValueChange={setSelectedClass} disabled={uploadMode === 'all'}>
                       <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
                       <SelectContent>
                         {classes.map((c) => (<SelectItem key={c} value={c.toString()}>Class {c}</SelectItem>))}
@@ -364,7 +374,11 @@ const UploadPage: React.FC = () => {
                   <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
                     <FileSpreadsheet className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                     <p className="text-sm text-muted-foreground mb-4">
-                      Upload an Excel file (.xlsx / .xls) with columns: S No, Admission No, Name, DOB, Section
+                      {uploadMode === 'single'
+                        ? 'Upload an Excel file (.xlsx / .xls) with columns: S No, Admission No, Name, DOB, Section'
+                        : 'Upload an Excel file (.xlsx / .xls) with columns: S No, Admission No, Name, DOB, Class, Section'}
+                      <br />
+                      Existing admission numbers in this academic year will be skipped automatically.
                     </p>
                     <Input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} className="max-w-xs mx-auto" />
                   </div>
@@ -434,7 +448,11 @@ const UploadPage: React.FC = () => {
                 {uploadStatus === 'success' && (
                   <div className="flex items-center gap-2 text-success p-4 bg-success/10 rounded-lg">
                     <CheckCircle2 className="h-5 w-5" />
-                    <span>Students uploaded successfully!</span>
+                    <span>
+                      {lastUploadSummary
+                        ? `Uploaded successfully — ${lastUploadSummary.inserted} added, ${lastUploadSummary.skipped} duplicate(s) skipped.`
+                        : 'Students uploaded successfully!'}
+                    </span>
                   </div>
                 )}
                 {uploadStatus === 'error' && (
