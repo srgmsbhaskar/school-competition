@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { Loader2, Search, Pencil, Trash2 } from 'lucide-react';
+import { Loader2, Search, Pencil, Trash2, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -41,6 +41,10 @@ const StudentDatabase: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [truncated, setTruncated] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const emptyAddForm = { name: '', admission_no: '', dob: '', class: '', section: '', s_no: '', academic_year: '' };
+  const [addForm, setAddForm] = useState(emptyAddForm);
+  const [isAdding, setIsAdding] = useState(false);
   const { toast } = useToast();
 
   /** Paginate through Supabase's 1000-row limit up to ROW_CAP. */
@@ -117,6 +121,56 @@ const StudentDatabase: React.FC = () => {
     const y = currentYear - 2 + i;
     return `${y}-${y + 1}`;
   });
+
+  const defaultAcademicYear = (() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const startYear = now.getMonth() >= 3 ? y : y - 1;
+    return `${startYear}-${startYear + 1}`;
+  })();
+
+  const handleAddOpen = () => {
+    setAddForm({
+      ...emptyAddForm,
+      academic_year: selectedYear !== 'all' ? selectedYear : defaultAcademicYear,
+      class: selectedClass !== 'all' ? selectedClass : '',
+      section: selectedSection !== 'all' ? selectedSection : '',
+    });
+    setIsAddOpen(true);
+  };
+
+  const handleAddSave = async () => {
+    if (!addForm.name.trim() || !addForm.admission_no.trim() || !addForm.dob || !addForm.class || !addForm.section.trim() || !addForm.s_no || !addForm.academic_year) {
+      toast({ title: 'Missing fields', description: 'All fields are required', variant: 'destructive' });
+      return;
+    }
+    const classNum = parseInt(addForm.class);
+    if (isNaN(classNum) || classNum < 1 || classNum > 12) {
+      toast({ title: 'Invalid class', description: 'Class must be between 1 and 12', variant: 'destructive' });
+      return;
+    }
+    setIsAdding(true);
+    try {
+      const { error } = await supabase.from('students').insert({
+        name: addForm.name.trim(),
+        admission_no: addForm.admission_no.trim(),
+        dob: addForm.dob,
+        class: classNum,
+        section: addForm.section.trim().toUpperCase(),
+        s_no: parseInt(addForm.s_no),
+        academic_year: addForm.academic_year,
+      });
+      if (error) throw error;
+      toast({ title: 'Success', description: 'Student added successfully' });
+      setIsAddOpen(false);
+      fetchFilterOptions();
+      fetchStudents();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to add student', variant: 'destructive' });
+    } finally {
+      setIsAdding(false);
+    }
+  };
 
   const handleEditOpen = (student: Student) => {
     setEditStudent(student);
@@ -269,13 +323,19 @@ const StudentDatabase: React.FC = () => {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Students ({filteredStudents.length})</CardTitle>
-            <CardDescription>
-              {selectedClass === 'all' ? 'All classes' : `Class ${selectedClass}`}
-              {selectedSection !== 'all' && ` - Section ${selectedSection}`}
-              {selectedYear !== 'all' && ` - ${selectedYear}`}
-            </CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Students ({filteredStudents.length})</CardTitle>
+              <CardDescription>
+                {selectedClass === 'all' ? 'All classes' : `Class ${selectedClass}`}
+                {selectedSection !== 'all' && ` - Section ${selectedSection}`}
+                {selectedYear !== 'all' && ` - ${selectedYear}`}
+              </CardDescription>
+            </div>
+            <Button size="sm" onClick={handleAddOpen}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Student
+            </Button>
           </CardHeader>
           <CardContent>
             {truncated && (
@@ -374,6 +434,62 @@ const StudentDatabase: React.FC = () => {
             <Button onClick={handleEditSave} disabled={isSaving}>
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Student Dialog */}
+      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Student</DialogTitle>
+            <DialogDescription>Enter the student's details.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="space-y-2 col-span-2">
+              <Label>Name</Label>
+              <Input value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Admission No.</Label>
+              <Input value={addForm.admission_no} onChange={(e) => setAddForm({ ...addForm, admission_no: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>S.No</Label>
+              <Input type="number" value={addForm.s_no} onChange={(e) => setAddForm({ ...addForm, s_no: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Date of Birth</Label>
+              <Input type="date" value={addForm.dob} onChange={(e) => setAddForm({ ...addForm, dob: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Class (1-12)</Label>
+              <Input type="number" min={1} max={12} value={addForm.class} onChange={(e) => setAddForm({ ...addForm, class: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Section</Label>
+              <Input value={addForm.section} onChange={(e) => setAddForm({ ...addForm, section: e.target.value })} placeholder="e.g. A" />
+            </div>
+            <div className="space-y-2">
+              <Label>Academic Year</Label>
+              <Select value={addForm.academic_year} onValueChange={(v) => setAddForm({ ...addForm, academic_year: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => (
+                    <SelectItem key={y} value={y}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddSave} disabled={isAdding}>
+              {isAdding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Add Student
             </Button>
           </DialogFooter>
         </DialogContent>
