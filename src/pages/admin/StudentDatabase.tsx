@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { Loader2, Search, Pencil, Trash2 } from 'lucide-react';
+import { Loader2, Search, Pencil, Trash2, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -41,6 +41,10 @@ const StudentDatabase: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [truncated, setTruncated] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const emptyAddForm = { name: '', admission_no: '', dob: '', class: '', section: '', s_no: '', academic_year: '' };
+  const [addForm, setAddForm] = useState(emptyAddForm);
+  const [isAdding, setIsAdding] = useState(false);
   const { toast } = useToast();
 
   /** Paginate through Supabase's 1000-row limit up to ROW_CAP. */
@@ -117,6 +121,56 @@ const StudentDatabase: React.FC = () => {
     const y = currentYear - 2 + i;
     return `${y}-${y + 1}`;
   });
+
+  const defaultAcademicYear = (() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const startYear = now.getMonth() >= 3 ? y : y - 1;
+    return `${startYear}-${startYear + 1}`;
+  })();
+
+  const handleAddOpen = () => {
+    setAddForm({
+      ...emptyAddForm,
+      academic_year: selectedYear !== 'all' ? selectedYear : defaultAcademicYear,
+      class: selectedClass !== 'all' ? selectedClass : '',
+      section: selectedSection !== 'all' ? selectedSection : '',
+    });
+    setIsAddOpen(true);
+  };
+
+  const handleAddSave = async () => {
+    if (!addForm.name.trim() || !addForm.admission_no.trim() || !addForm.dob || !addForm.class || !addForm.section.trim() || !addForm.s_no || !addForm.academic_year) {
+      toast({ title: 'Missing fields', description: 'All fields are required', variant: 'destructive' });
+      return;
+    }
+    const classNum = parseInt(addForm.class);
+    if (isNaN(classNum) || classNum < 1 || classNum > 12) {
+      toast({ title: 'Invalid class', description: 'Class must be between 1 and 12', variant: 'destructive' });
+      return;
+    }
+    setIsAdding(true);
+    try {
+      const { error } = await supabase.from('students').insert({
+        name: addForm.name.trim(),
+        admission_no: addForm.admission_no.trim(),
+        dob: addForm.dob,
+        class: classNum,
+        section: addForm.section.trim().toUpperCase(),
+        s_no: parseInt(addForm.s_no),
+        academic_year: addForm.academic_year,
+      });
+      if (error) throw error;
+      toast({ title: 'Success', description: 'Student added successfully' });
+      setIsAddOpen(false);
+      fetchFilterOptions();
+      fetchStudents();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to add student', variant: 'destructive' });
+    } finally {
+      setIsAdding(false);
+    }
+  };
 
   const handleEditOpen = (student: Student) => {
     setEditStudent(student);
