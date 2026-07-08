@@ -165,7 +165,7 @@ export function parseAndValidateCSV(
  */
 export function parseAndValidateRows(
   rows: (string | number | null | undefined)[][],
-  selectedClass: number
+  selectedClass: number | null
 ): ParseResult {
   if (!rows || rows.length < 2) {
     return {
@@ -196,6 +196,15 @@ export function parseAndValidateRows(
   const nameIdx = idx(['name']);
   const dobIdx = idx(['dob', 'date of birth']);
   const secIdx = idx(['sec', 'section']);
+  const classIdx = idx(['class', 'std', 'standard', 'grade']);
+
+  if (selectedClass == null && classIdx === -1) {
+    return {
+      validRows: [],
+      errors: [{ row: 0, field: 'file', message: 'File must include a "Class" column when uploading all classes at once' }],
+      totalRows: rows.length - 1,
+    };
+  }
 
   const validRows: ValidatedStudentRow[] = [];
   const errors: ValidationError[] = [];
@@ -244,12 +253,21 @@ export function parseAndValidateRows(
 
     const s_no = parseInt(sNoStr) || i;
 
+    let classNum: number;
+    if (selectedClass != null) {
+      classNum = selectedClass;
+    } else {
+      const raw = String(row[classIdx] ?? '').trim();
+      const parsed = parseInt(raw);
+      classNum = isNaN(parsed) ? -1 : parsed;
+    }
+
     const result = studentRowSchema.safeParse({
       s_no,
       admission_no,
       name,
       dob,
-      class: selectedClass,
+      class: classNum,
       section,
     });
 
