@@ -445,6 +445,7 @@ export type Database = {
     }
     Functions: {
       can_manage_certificate_path: { Args: { _name: string }; Returns: boolean }
+      competition_academic_year: { Args: { _date: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -453,6 +454,10 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_coordinator: { Args: { _user_id: string }; Returns: boolean }
+      is_competition_write_blocked: {
+        Args: { _competition_id: string }
+        Returns: boolean
+      }
       is_department_incharge: {
         Args: {
           _department: Database["public"]["Enums"]["competition_department"]
@@ -460,6 +465,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_year_frozen: { Args: { _year: string }; Returns: boolean }
       log_audit: {
         Args: { _action: string; _details?: string }
         Returns: undefined
