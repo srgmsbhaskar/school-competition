@@ -410,6 +410,45 @@ const PrizesPage: React.FC = () => {
             </TabsContent>
 
             <TabsContent value="competition" className="mt-6">
+              <Card className="mb-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" />Competitions With Overall Prizes</CardTitle>
+                  <CardDescription>All {departmentLabel.toLowerCase()} competitions where our school secured overall prizes this academic year</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {overallPrizes.length === 0 ? (
+                    <div className="text-center py-6 text-muted-foreground">No overall prizes recorded yet</div>
+                  ) : (
+                    <Table>
+                      <TableHeader><TableRow><TableHead>Competition</TableHead><TableHead>Overall Prizes Secured</TableHead></TableRow></TableHeader>
+                      <TableBody>
+                        {Array.from(
+                          overallPrizes.reduce((map, p) => {
+                            const key = p.competition_id;
+                            if (!map.has(key)) map.set(key, { name: p.competition?.name || 'Competition', rows: [] as OverallPrizeRow[] });
+                            map.get(key)!.rows.push(p);
+                            return map;
+                          }, new Map<string, { name: string; rows: OverallPrizeRow[] }>()),
+                        ).map(([compId, group]) => (
+                          <TableRow key={compId}>
+                            <TableCell className="font-medium">{group.name}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-2">
+                                {group.rows.map((p) => (
+                                  <Badge key={p.id} variant={getPrizeBadgeVariant(p.prize)}>
+                                    {competitionPrizeOptions.find((o) => o.value === p.prize)?.label || p.prize}
+                                    {p.student ? ` — ${p.student.name}` : ''}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
