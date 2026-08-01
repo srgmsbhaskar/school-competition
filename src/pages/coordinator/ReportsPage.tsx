@@ -53,6 +53,7 @@ const ReportsPage: React.FC = () => {
   const [prizeWinners, setPrizeWinners] = useState<PrizeWinner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pageSize, setPageSize] = useState<PageSize>('a4');
+  const [participationSort, setParticipationSort] = useState<'event' | 'class' | 'name'>('event');
   const [viewingCertificate, setViewingCertificate] = useState<{ url: string; name: string } | null>(null);
 
   useEffect(() => {
@@ -139,6 +140,22 @@ const ReportsPage: React.FC = () => {
 
   const selectedCompetitionData = competitions.find((c) => c.id === selectedCompetition);
 
+  const sortedParticipations = React.useMemo(() => {
+    const rows = [...participations];
+    rows.sort((a, b) => {
+      if (participationSort === 'class') {
+        if (a.class !== b.class) return a.class - b.class;
+        if (a.section !== b.section) return a.section.localeCompare(b.section);
+        return a.student_name.localeCompare(b.student_name);
+      }
+      if (participationSort === 'name') return a.student_name.localeCompare(b.student_name);
+      const ev = a.event_name.localeCompare(b.event_name);
+      if (ev !== 0) return ev;
+      return a.student_name.localeCompare(b.student_name);
+    });
+    return rows;
+  }, [participations, participationSort]);
+
   const handlePrintCertificate = (url: string) => {
     const printWindow = window.open(url, '_blank');
     if (printWindow) {
@@ -153,7 +170,7 @@ const ReportsPage: React.FC = () => {
     const competitionName = comp?.name || 'Competition';
     const competitionDate = comp?.competition_date ? format(new Date(comp.competition_date), 'dd MMM yyyy') : '';
     const venue = comp?.venue || '';
-    const exportData = participations.map((p) => ({ student_name: p.student_name, admission_no: p.admission_no, class: p.class, section: p.section, event_name: p.event_name, event_type: p.event_type, prize: p.prize ? formatPrize(p.prize) : '—' }));
+    const exportData = sortedParticipations.map((p) => ({ student_name: p.student_name, admission_no: p.admission_no, class: p.class, section: p.section, event_name: p.event_name, event_type: p.event_type, prize: p.prize ? formatPrize(p.prize) : '—' }));
     exportToPDF(exportData, [
       { header: 'Student Name', key: 'student_name' }, { header: 'Admission No.', key: 'admission_no' }, { header: 'Class', key: 'class' }, { header: 'Section', key: 'section' }, { header: 'Event', key: 'event_name' }, { header: 'Type', key: 'event_type' }, { header: 'Prize', key: 'prize' },
     ], `Participation Report\n${competitionName}\nDate: ${competitionDate} | Venue: ${venue}`, `participation-report-${competitionName.toLowerCase().replace(/\s+/g, '-')}`, pageSize);
@@ -164,7 +181,7 @@ const ReportsPage: React.FC = () => {
     const competitionName = comp?.name || 'Competition';
     const competitionDate = comp?.competition_date ? format(new Date(comp.competition_date), 'dd MMM yyyy') : '';
     const venue = comp?.venue || '';
-    const exportData = participations.map((p) => ({ competition_name: competitionName, competition_date: competitionDate, venue: venue, student_name: p.student_name, admission_no: p.admission_no, class: p.class, section: p.section, event_name: p.event_name, event_type: p.event_type, prize: p.prize ? formatPrize(p.prize) : '—' }));
+    const exportData = sortedParticipations.map((p) => ({ competition_name: competitionName, competition_date: competitionDate, venue: venue, student_name: p.student_name, admission_no: p.admission_no, class: p.class, section: p.section, event_name: p.event_name, event_type: p.event_type, prize: p.prize ? formatPrize(p.prize) : '—' }));
     exportToExcel(exportData, [
       { header: 'Competition', key: 'competition_name' }, { header: 'Date', key: 'competition_date' }, { header: 'Venue', key: 'venue' }, { header: 'Student Name', key: 'student_name' }, { header: 'Admission No.', key: 'admission_no' }, { header: 'Class', key: 'class' }, { header: 'Section', key: 'section' }, { header: 'Event', key: 'event_name' }, { header: 'Type', key: 'event_type' }, { header: 'Prize', key: 'prize' },
     ], 'Participation', `participation-report-${competitionName.toLowerCase().replace(/\s+/g, '-')}`, `Participation Report\n${competitionName}\nDate: ${competitionDate} | Venue: ${venue}`);
@@ -243,6 +260,16 @@ const ReportsPage: React.FC = () => {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="w-44">
+                      <Select value={participationSort} onValueChange={(v) => setParticipationSort(v as 'event' | 'class' | 'name')}>
+                        <SelectTrigger><SelectValue placeholder="Sort by" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="event">Sort by Event</SelectItem>
+                          <SelectItem value="class">Sort by Class</SelectItem>
+                          <SelectItem value="name">Sort by Student</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     {participations.length > 0 && (
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={handleExportParticipationPDF}><FileText className="mr-2 h-4 w-4" />PDF</Button>
@@ -277,7 +304,7 @@ const ReportsPage: React.FC = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {participations.map((p) => (
+                        {sortedParticipations.map((p) => (
                           <TableRow key={p.id}>
                             <TableCell className="font-medium">{p.student_name}</TableCell>
                             <TableCell className="font-mono">{p.admission_no}</TableCell>

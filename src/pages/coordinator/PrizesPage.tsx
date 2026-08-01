@@ -18,6 +18,7 @@ interface Event { id: string; name: string; competition_id: string; event_type: 
 interface Participation { id: string; student_id: string; event_id: string; prize: string | null; certificate_url: string | null; student: { id: string; name: string; admission_no: string; class: number; section: string; }; }
 interface Student { id: string; name: string; admission_no: string; class: number; section: string; }
 interface CompetitionPrize { id: string; competition_id: string; student_id: string; prize: string; student?: Student; }
+interface OverallPrizeRow extends CompetitionPrize { competition?: { id: string; name: string; competition_date: string; venue: string }; }
 
 const individualPrizeOptions = [
   { value: 'first', label: 'First' },
@@ -45,6 +46,7 @@ const PrizesPage: React.FC = () => {
   const [competitionPrizes, setCompetitionPrizes] = useState<CompetitionPrize[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [updatedCompetitionPrizes, setUpdatedCompetitionPrizes] = useState<Record<string, string>>({});
+  const [overallPrizes, setOverallPrizes] = useState<OverallPrizeRow[]>([]);
   const [uploadingCertFor, setUploadingCertFor] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -61,6 +63,22 @@ const PrizesPage: React.FC = () => {
     };
     fetchCompetitions();
   }, [department, role, academicYear]);
+
+  const fetchOverallPrizes = async () => {
+    const { data: comps } = await forceAcademicYear(
+      supabase.from('competitions').select('id').eq('department', department),
+      academicYear,
+    );
+    const ids = (comps || []).map((c: any) => c.id);
+    if (ids.length === 0) { setOverallPrizes([]); return; }
+    const { data } = await supabase
+      .from('competition_prizes')
+      .select('*, student:students(*), competition:competitions(id, name, competition_date, venue)')
+      .in('competition_id', ids);
+    setOverallPrizes((data || []) as any);
+  };
+
+  useEffect(() => { fetchOverallPrizes(); }, [department, academicYear]);
 
   useEffect(() => {
     if (selectedCompetition) {
@@ -149,6 +167,7 @@ const PrizesPage: React.FC = () => {
       await supabase.from('competitions').update({ is_completed: true }).eq('id', selectedCompetition);
       toast({ title: 'Success', description: 'Competition prizes updated successfully' });
       fetchCompetitionPrizes();
+      fetchOverallPrizes();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message || 'Failed to save competition prizes', variant: 'destructive' });
     } finally {
@@ -391,6 +410,45 @@ const PrizesPage: React.FC = () => {
             </TabsContent>
 
             <TabsContent value="competition" className="mt-6">
+              <Card className="mb-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" />Competitions With Overall Prizes</CardTitle>
+                  <CardDescription>All {departmentLabel.toLowerCase()} competitions where our school secured overall prizes this academic year</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {overallPrizes.length === 0 ? (
+                    <div className="text-center py-6 text-muted-foreground">No overall prizes recorded yet</div>
+                  ) : (
+                    <Table>
+                      <TableHeader><TableRow><TableHead>Competition</TableHead><TableHead>Overall Prizes Secured</TableHead></TableRow></TableHeader>
+                      <TableBody>
+                        {Array.from(
+                          overallPrizes.reduce((map, p) => {
+                            const key = p.competition_id;
+                            if (!map.has(key)) map.set(key, { name: p.competition?.name || 'Competition', rows: [] as OverallPrizeRow[] });
+                            map.get(key)!.rows.push(p);
+                            return map;
+                          }, new Map<string, { name: string; rows: OverallPrizeRow[] }>()),
+                        ).map(([compId, group]) => (
+                          <TableRow key={compId}>
+                            <TableCell className="font-medium">{group.name}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-2">
+                                {group.rows.map((p) => (
+                                  <Badge key={p.id} variant={getPrizeBadgeVariant(p.prize)}>
+                                    {competitionPrizeOptions.find((o) => o.value === p.prize)?.label || p.prize}
+                                    {p.student ? ` — ${p.student.name}` : ''}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
