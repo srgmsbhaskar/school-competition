@@ -241,6 +241,27 @@ const PrizesPage: React.FC = () => {
   };
 
   const selectedEventData = events.find((e) => e.id === selectedEvent);
+
+  const openDrillDown = async (competitionId: string, name: string) => {
+    setDrillDown({ competitionId, name });
+    setDrillLoading(true);
+    const { data } = await supabase
+      .from('student_participations')
+      .select('id, prize, student:students(name, admission_no, class, section), event:events(name)')
+      .eq('competition_id', competitionId);
+    setDrillRows(
+      (data || []).map((p: any) => ({
+        id: p.id,
+        name: p.student?.name || '',
+        admission_no: p.student?.admission_no || '',
+        class: p.student?.class || 0,
+        section: p.student?.section || '',
+        event: p.event?.name || '',
+        prize: p.prize,
+      })).sort((a, b) => a.event.localeCompare(b.event) || a.name.localeCompare(b.name)),
+    );
+    setDrillLoading(false);
+  };
   const showCertUpload = department === 'other';
 
   return (
