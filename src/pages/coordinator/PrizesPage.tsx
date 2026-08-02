@@ -262,7 +262,9 @@ const PrizesPage: React.FC = () => {
           <Tabs defaultValue="events">
             <TabsList>
               <TabsTrigger value="events" className="flex items-center gap-2"><Award className="h-4 w-4" />Event Prizes</TabsTrigger>
-              <TabsTrigger value="competition" className="flex items-center gap-2"><Trophy className="h-4 w-4" />Competition Prizes</TabsTrigger>
+              {department !== 'external' && (
+                <TabsTrigger value="competition" className="flex items-center gap-2"><Trophy className="h-4 w-4" />Competition Prizes</TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="events" className="mt-6">
@@ -409,6 +411,7 @@ const PrizesPage: React.FC = () => {
               </Card>
             </TabsContent>
 
+            {department !== 'external' && (
             <TabsContent value="competition" className="mt-6">
               <Card className="mb-6">
                 <CardHeader>
@@ -491,6 +494,7 @@ const PrizesPage: React.FC = () => {
                 </CardContent>
               </Card>
             </TabsContent>
+            )}
           </Tabs>
         )}
       </div>
