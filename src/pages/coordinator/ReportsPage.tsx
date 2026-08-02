@@ -16,12 +16,20 @@ import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { scopeToAcademicYear, getAcademicYearRange } from '@/lib/academicYear';
 
-interface Competition { id: string; name: string; competition_date: string; venue: string; }
+interface Competition { id: string; name: string; competition_date: string; venue: string; overall_status?: string | null; }
+interface CompetitionSummaryRow { id: string; name: string; participants: number; winners: number; status: string; }
 interface ParticipationReport { id: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; event_type: string; prize: string | null; certificate_url: string | null; }
 interface PrizeWinner { student_name: string; admission_no: string; class: number; section: string; total_prizes: number; prizes: { event: string; prize: string; competition: string; certificate_url?: string | null }[]; }
 
 const prizeRanking: Record<string, number> = {
   winner: 15, runner_up_1: 12, runner_up_2: 10, first: 9, second: 8, third: 5, consolation: 3,
+};
+
+const overallStatusLabels: Record<string, string> = {
+  overall_winner: 'Overall Winner',
+  runner_up_1: '1st Runner Up',
+  runner_up_2: '2nd Runner Up',
+  rotational_shield: 'Rotational Shield',
 };
 
 // Reports are capped at 3000 rows per academic year to keep exports performant.
@@ -51,6 +59,7 @@ const ReportsPage: React.FC = () => {
   const [selectedCompetition, setSelectedCompetition] = useState<string>('');
   const [participations, setParticipations] = useState<ParticipationReport[]>([]);
   const [prizeWinners, setPrizeWinners] = useState<PrizeWinner[]>([]);
+  const [summary, setSummary] = useState<CompetitionSummaryRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pageSize, setPageSize] = useState<PageSize>('a4');
   const [participationSort, setParticipationSort] = useState<'event' | 'class' | 'name'>('event');
@@ -59,7 +68,7 @@ const ReportsPage: React.FC = () => {
   useEffect(() => {
     const fetchCompetitions = async () => {
       const { data } = await scopeToAcademicYear(
-        supabase.from('competitions').select('id, name, competition_date, venue').eq('department', department),
+        supabase.from('competitions').select('id, name, competition_date, venue, overall_status').eq('department', department),
         role,
         academicYear,
       ).order('competition_date', { ascending: false });
@@ -74,6 +83,36 @@ const ReportsPage: React.FC = () => {
   }, [selectedCompetition]);
 
   useEffect(() => { fetchPrizeWinners(); }, [department]);
+
+  useEffect(() => { fetchSummary(); }, [competitions]);
+
+  const fetchSummary = async () => {
+    if (competitions.length === 0) { setSummary([]); return; }
+    const ids = competitions.map((c) => c.id);
+    const { rows } = await fetchPaginated<any>((from, to) =>
+      supabase
+        .from('student_participations')
+        .select('competition_id, prize')
+        .in('competition_id', ids)
+        .range(from, to),
+    );
+    const counts = new Map<string, { participants: number; winners: number }>();
+    rows.forEach((r: any) => {
+      const c = counts.get(r.competition_id) || { participants: 0, winners: 0 };
+      c.participants += 1;
+      if (r.prize) c.winners += 1;
+      counts.set(r.competition_id, c);
+    });
+    setSummary(
+      competitions.map((c) => ({
+        id: c.id,
+        name: c.name,
+        participants: counts.get(c.id)?.participants || 0,
+        winners: counts.get(c.id)?.winners || 0,
+        status: c.overall_status ? overallStatusLabels[c.overall_status] || c.overall_status : '—',
+      })),
+    );
+  };
 
   const fetchParticipationReport = async () => {
     setIsLoading(true);
@@ -199,6 +238,21 @@ const ReportsPage: React.FC = () => {
     exportToExcel(winnersData, [
       { header: 'Rank', key: 'rank' }, { header: 'Student Name', key: 'student_name' }, { header: 'Admission No.', key: 'admission_no' }, { header: 'Class', key: 'class' }, { header: 'Section', key: 'section' }, { header: 'Prizes', key: 'prizes' }, { header: 'Points', key: 'points' },
     ], 'Prize Winners', 'prize-winners-report', `Prize Winners Report - ${departmentLabel}`);
+  };
+
+  const summaryColumns = [
+    { header: 'Competition', key: 'name' },
+    { header: 'Students Participated', key: 'participants' },
+    { header: 'No. of Winners', key: 'winners' },
+    { header: 'Status', key: 'status' },
+  ];
+
+  const handleExportSummaryPDF = () => {
+    exportToPDF(summary, summaryColumns, `Competition Summary - ${departmentLabel}`, 'competition-summary', pageSize);
+  };
+
+  const handleExportSummaryExcel = () => {
+    exportToExcel(summary, summaryColumns, 'Competition Summary', 'competition-summary', `Competition Summary - ${departmentLabel}`);
   };
 
   return (
