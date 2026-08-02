@@ -441,25 +441,42 @@ const PrizesPage: React.FC = () => {
             <TabsContent value="competition" className="mt-6">
               <Card className="mb-6">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" />Competitions With Overall Prizes</CardTitle>
-                  <CardDescription>All {departmentLabel.toLowerCase()} competitions where our school secured overall prizes this academic year</CardDescription>
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" />Competitions With Overall Prizes</CardTitle>
+                      <CardDescription>All {departmentLabel.toLowerCase()} competitions where our school secured overall prizes this academic year. Click a row to see the participating students.</CardDescription>
+                    </div>
+                    <div className="w-64">
+                      <Select value={overallCompetitionFilter} onValueChange={setOverallCompetitionFilter}>
+                        <SelectTrigger><SelectValue placeholder="All competitions" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All competitions</SelectItem>
+                          {Array.from(new Map(overallPrizes.map((p) => [p.competition_id, p.competition?.name || 'Competition'])).entries()).map(([id, name]) => (
+                            <SelectItem key={id} value={id}>{name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  {overallPrizes.length === 0 ? (
+                  {overallPrizes.filter((p) => overallCompetitionFilter === 'all' || p.competition_id === overallCompetitionFilter).length === 0 ? (
                     <div className="text-center py-6 text-muted-foreground">No overall prizes recorded yet</div>
                   ) : (
                     <Table>
                       <TableHeader><TableRow><TableHead>Competition</TableHead><TableHead>Overall Prizes Secured</TableHead></TableRow></TableHeader>
                       <TableBody>
                         {Array.from(
-                          overallPrizes.reduce((map, p) => {
+                          overallPrizes
+                            .filter((p) => overallCompetitionFilter === 'all' || p.competition_id === overallCompetitionFilter)
+                            .reduce((map, p) => {
                             const key = p.competition_id;
                             if (!map.has(key)) map.set(key, { name: p.competition?.name || 'Competition', rows: [] as OverallPrizeRow[] });
                             map.get(key)!.rows.push(p);
                             return map;
                           }, new Map<string, { name: string; rows: OverallPrizeRow[] }>()),
                         ).map(([compId, group]) => (
-                          <TableRow key={compId}>
+                          <TableRow key={compId} className="cursor-pointer hover:bg-muted/50" onClick={() => openDrillDown(compId, group.name)}>
                             <TableCell className="font-medium">{group.name}</TableCell>
                             <TableCell>
                               <div className="flex flex-wrap gap-2">
