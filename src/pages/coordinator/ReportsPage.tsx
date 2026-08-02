@@ -63,6 +63,7 @@ const ReportsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [pageSize, setPageSize] = useState<PageSize>('a4');
   const [participationSort, setParticipationSort] = useState<'event' | 'class' | 'name'>('event');
+  const [participationEventFilter, setParticipationEventFilter] = useState<string>('all');
   const [viewingCertificate, setViewingCertificate] = useState<{ url: string; name: string } | null>(null);
 
   useEffect(() => {
@@ -180,7 +181,9 @@ const ReportsPage: React.FC = () => {
   const selectedCompetitionData = competitions.find((c) => c.id === selectedCompetition);
 
   const sortedParticipations = React.useMemo(() => {
-    const rows = [...participations];
+    const rows = participations.filter(
+      (p) => participationEventFilter === 'all' || p.event_name === participationEventFilter,
+    );
     rows.sort((a, b) => {
       if (participationSort === 'class') {
         if (a.class !== b.class) return a.class - b.class;
@@ -193,7 +196,12 @@ const ReportsPage: React.FC = () => {
       return a.student_name.localeCompare(b.student_name);
     });
     return rows;
-  }, [participations, participationSort]);
+  }, [participations, participationSort, participationEventFilter]);
+
+  const participationEventOptions = React.useMemo(
+    () => Array.from(new Set(participations.map((p) => p.event_name).filter(Boolean))).sort(),
+    [participations],
+  );
 
   const handlePrintCertificate = (url: string) => {
     const printWindow = window.open(url, '_blank');
