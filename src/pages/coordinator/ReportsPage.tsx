@@ -247,12 +247,14 @@ const ReportsPage: React.FC = () => {
     { header: 'Status', key: 'status' },
   ];
 
+  const summaryExportData = () => summary.map((s) => ({ name: s.name, participants: s.participants, winners: s.winners, status: s.status }));
+
   const handleExportSummaryPDF = () => {
-    exportToPDF(summary, summaryColumns, `Competition Summary - ${departmentLabel}`, 'competition-summary', pageSize);
+    exportToPDF(summaryExportData(), summaryColumns, `Competition Summary - ${departmentLabel}`, 'competition-summary', pageSize);
   };
 
   const handleExportSummaryExcel = () => {
-    exportToExcel(summary, summaryColumns, 'Competition Summary', 'competition-summary', `Competition Summary - ${departmentLabel}`);
+    exportToExcel(summaryExportData(), summaryColumns, 'Competition Summary', 'competition-summary', `Competition Summary - ${departmentLabel}`);
   };
 
   return (
