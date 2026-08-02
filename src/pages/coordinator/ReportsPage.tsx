@@ -131,6 +131,7 @@ const ReportsPage: React.FC = () => {
       id: p.id, student_name: p.student?.name || '', admission_no: p.student?.admission_no || '', class: p.student?.class || 0, section: p.student?.section || '', event_name: p.event?.name || '', event_type: p.event?.event_type || 'solo', prize: p.prize, certificate_url: p.certificate_url,
     }));
     setParticipations(report);
+    setParticipationEventFilter('all');
     setIsLoading(false);
   };
 
