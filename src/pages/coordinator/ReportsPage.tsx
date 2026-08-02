@@ -63,6 +63,7 @@ const ReportsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [pageSize, setPageSize] = useState<PageSize>('a4');
   const [participationSort, setParticipationSort] = useState<'event' | 'class' | 'name'>('event');
+  const [participationEventFilter, setParticipationEventFilter] = useState<string>('all');
   const [viewingCertificate, setViewingCertificate] = useState<{ url: string; name: string } | null>(null);
 
   useEffect(() => {
@@ -130,6 +131,7 @@ const ReportsPage: React.FC = () => {
       id: p.id, student_name: p.student?.name || '', admission_no: p.student?.admission_no || '', class: p.student?.class || 0, section: p.student?.section || '', event_name: p.event?.name || '', event_type: p.event?.event_type || 'solo', prize: p.prize, certificate_url: p.certificate_url,
     }));
     setParticipations(report);
+    setParticipationEventFilter('all');
     setIsLoading(false);
   };
 
@@ -180,7 +182,9 @@ const ReportsPage: React.FC = () => {
   const selectedCompetitionData = competitions.find((c) => c.id === selectedCompetition);
 
   const sortedParticipations = React.useMemo(() => {
-    const rows = [...participations];
+    const rows = participations.filter(
+      (p) => participationEventFilter === 'all' || p.event_name === participationEventFilter,
+    );
     rows.sort((a, b) => {
       if (participationSort === 'class') {
         if (a.class !== b.class) return a.class - b.class;
@@ -193,7 +197,12 @@ const ReportsPage: React.FC = () => {
       return a.student_name.localeCompare(b.student_name);
     });
     return rows;
-  }, [participations, participationSort]);
+  }, [participations, participationSort, participationEventFilter]);
+
+  const participationEventOptions = React.useMemo(
+    () => Array.from(new Set(participations.map((p) => p.event_name).filter(Boolean))).sort(),
+    [participations],
+  );
 
   const handlePrintCertificate = (url: string) => {
     const printWindow = window.open(url, '_blank');
@@ -314,6 +323,15 @@ const ReportsPage: React.FC = () => {
                         <SelectTrigger><SelectValue placeholder="Select competition" /></SelectTrigger>
                         <SelectContent>
                           {competitions.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-44">
+                      <Select value={participationEventFilter} onValueChange={setParticipationEventFilter}>
+                        <SelectTrigger><SelectValue placeholder="All events" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All events</SelectItem>
+                          {participationEventOptions.map((e) => (<SelectItem key={e} value={e}>{e}</SelectItem>))}
                         </SelectContent>
                       </Select>
                     </div>

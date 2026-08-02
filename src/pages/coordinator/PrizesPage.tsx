@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Loader2, Save, Trophy, Award, Upload, FileImage } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -47,6 +48,10 @@ const PrizesPage: React.FC = () => {
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [updatedCompetitionPrizes, setUpdatedCompetitionPrizes] = useState<Record<string, string>>({});
   const [overallPrizes, setOverallPrizes] = useState<OverallPrizeRow[]>([]);
+  const [overallCompetitionFilter, setOverallCompetitionFilter] = useState<string>('all');
+  const [drillDown, setDrillDown] = useState<{ competitionId: string; name: string } | null>(null);
+  const [drillRows, setDrillRows] = useState<{ id: string; name: string; admission_no: string; class: number; section: string; event: string; prize: string | null }[]>([]);
+  const [drillLoading, setDrillLoading] = useState(false);
   const [uploadingCertFor, setUploadingCertFor] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -236,6 +241,27 @@ const PrizesPage: React.FC = () => {
   };
 
   const selectedEventData = events.find((e) => e.id === selectedEvent);
+
+  const openDrillDown = async (competitionId: string, name: string) => {
+    setDrillDown({ competitionId, name });
+    setDrillLoading(true);
+    const { data } = await supabase
+      .from('student_participations')
+      .select('id, prize, student:students(name, admission_no, class, section), event:events(name)')
+      .eq('competition_id', competitionId);
+    setDrillRows(
+      (data || []).map((p: any) => ({
+        id: p.id,
+        name: p.student?.name || '',
+        admission_no: p.student?.admission_no || '',
+        class: p.student?.class || 0,
+        section: p.student?.section || '',
+        event: p.event?.name || '',
+        prize: p.prize,
+      })).sort((a, b) => a.event.localeCompare(b.event) || a.name.localeCompare(b.name)),
+    );
+    setDrillLoading(false);
+  };
   const showCertUpload = department === 'other';
 
   return (
@@ -415,25 +441,42 @@ const PrizesPage: React.FC = () => {
             <TabsContent value="competition" className="mt-6">
               <Card className="mb-6">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" />Competitions With Overall Prizes</CardTitle>
-                  <CardDescription>All {departmentLabel.toLowerCase()} competitions where our school secured overall prizes this academic year</CardDescription>
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" />Competitions With Overall Prizes</CardTitle>
+                      <CardDescription>All {departmentLabel.toLowerCase()} competitions where our school secured overall prizes this academic year. Click a row to see the participating students.</CardDescription>
+                    </div>
+                    <div className="w-64">
+                      <Select value={overallCompetitionFilter} onValueChange={setOverallCompetitionFilter}>
+                        <SelectTrigger><SelectValue placeholder="All competitions" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All competitions</SelectItem>
+                          {Array.from(new Map(overallPrizes.map((p) => [p.competition_id, p.competition?.name || 'Competition'])).entries()).map(([id, name]) => (
+                            <SelectItem key={id} value={id}>{name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  {overallPrizes.length === 0 ? (
+                  {overallPrizes.filter((p) => overallCompetitionFilter === 'all' || p.competition_id === overallCompetitionFilter).length === 0 ? (
                     <div className="text-center py-6 text-muted-foreground">No overall prizes recorded yet</div>
                   ) : (
                     <Table>
                       <TableHeader><TableRow><TableHead>Competition</TableHead><TableHead>Overall Prizes Secured</TableHead></TableRow></TableHeader>
                       <TableBody>
                         {Array.from(
-                          overallPrizes.reduce((map, p) => {
+                          overallPrizes
+                            .filter((p) => overallCompetitionFilter === 'all' || p.competition_id === overallCompetitionFilter)
+                            .reduce((map, p) => {
                             const key = p.competition_id;
                             if (!map.has(key)) map.set(key, { name: p.competition?.name || 'Competition', rows: [] as OverallPrizeRow[] });
                             map.get(key)!.rows.push(p);
                             return map;
                           }, new Map<string, { name: string; rows: OverallPrizeRow[] }>()),
                         ).map(([compId, group]) => (
-                          <TableRow key={compId}>
+                          <TableRow key={compId} className="cursor-pointer hover:bg-muted/50" onClick={() => openDrillDown(compId, group.name)}>
                             <TableCell className="font-medium">{group.name}</TableCell>
                             <TableCell>
                               <div className="flex flex-wrap gap-2">
@@ -497,6 +540,35 @@ const PrizesPage: React.FC = () => {
             )}
           </Tabs>
         )}
+
+        <Dialog open={!!drillDown} onOpenChange={(o) => { if (!o) { setDrillDown(null); setDrillRows([]); } }}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Participants — {drillDown?.name}</DialogTitle>
+              <DialogDescription>Students who participated in this competition</DialogDescription>
+            </DialogHeader>
+            {drillLoading ? (
+              <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : drillRows.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">No participants found</div>
+            ) : (
+              <Table>
+                <TableHeader><TableRow><TableHead>Student</TableHead><TableHead>Admission No.</TableHead><TableHead>Class</TableHead><TableHead>Event</TableHead><TableHead>Prize</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {drillRows.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-medium">{r.name}</TableCell>
+                      <TableCell className="font-mono">{r.admission_no}</TableCell>
+                      <TableCell>{r.class}-{r.section}</TableCell>
+                      <TableCell>{r.event}</TableCell>
+                      <TableCell>{r.prize ? <Badge variant={getPrizeBadgeVariant(r.prize)}>{individualPrizeOptions.find((o) => o.value === r.prize)?.label || r.prize}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
