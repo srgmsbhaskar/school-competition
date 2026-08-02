@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Plus, Loader2, Eye, Calendar, MapPin, Trash2, Save, Snowflake, Unlock, Trophy } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -25,7 +26,18 @@ interface Competition {
   is_frozen: boolean;
   created_at: string;
   prize?: string;
+  overall_status?: string | null;
 }
+
+export const overallStatusOptions = [
+  { value: 'overall_winner', label: 'Overall Winner' },
+  { value: 'runner_up_1', label: '1st Runner Up' },
+  { value: 'runner_up_2', label: '2nd Runner Up' },
+  { value: 'rotational_shield', label: 'Rotational Shield' },
+];
+
+export const getOverallStatusLabel = (value?: string | null) =>
+  overallStatusOptions.find((o) => o.value === value)?.label || '';
 
 const competitionGradeOptions = [
   { value: 'none', label: 'None' },
@@ -220,6 +232,37 @@ const CompetitionsPage: React.FC = () => {
   const getGradeValue = (competition: Competition) => {
     return editedGrades[competition.id] ?? competition.prize ?? '';
   };
+
+  const handleSetOverallStatus = async (competitionId: string, status: string | null) => {
+    try {
+      const { error } = await supabase
+        .from('competitions')
+        .update({ overall_status: status })
+        .eq('id', competitionId);
+      if (error) throw error;
+      setCompetitions((prev) => prev.map((c) => (c.id === competitionId ? { ...c, overall_status: status } : c)));
+      toast({ title: status ? 'Status updated' : 'Status cleared', description: status ? getOverallStatusLabel(status) : undefined });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
+  const StatusContextMenu: React.FC<{ competitionId: string; children: React.ReactNode }> = ({ competitionId, children }) => (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent className="w-52">
+        <ContextMenuLabel>Set Status</ContextMenuLabel>
+        <ContextMenuSeparator />
+        {overallStatusOptions.map((opt) => (
+          <ContextMenuItem key={opt.value} onSelect={() => handleSetOverallStatus(competitionId, opt.value)}>
+            {opt.label}
+          </ContextMenuItem>
+        ))}
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => handleSetOverallStatus(competitionId, null)}>Clear status</ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
 
   return (
     <DashboardLayout title={`${departmentLabel} - Competitions`}>
