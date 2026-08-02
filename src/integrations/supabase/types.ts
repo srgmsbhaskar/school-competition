@@ -139,6 +139,7 @@ export type Database = {
           is_completed: boolean | null
           is_frozen: boolean
           name: string
+          overall_status: string | null
           updated_at: string | null
           venue: string
         }
@@ -152,6 +153,7 @@ export type Database = {
           is_completed?: boolean | null
           is_frozen?: boolean
           name: string
+          overall_status?: string | null
           updated_at?: string | null
           venue: string
         }
@@ -165,6 +167,7 @@ export type Database = {
           is_completed?: boolean | null
           is_frozen?: boolean
           name?: string
+          overall_status?: string | null
           updated_at?: string | null
           venue?: string
         }
