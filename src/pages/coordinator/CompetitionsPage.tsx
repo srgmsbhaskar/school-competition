@@ -438,8 +438,16 @@ const CompetitionsPage: React.FC = () => {
                   </TableHeader>
                   <TableBody>
                     {competitions.map((competition) => (
-                      <TableRow key={competition.id}>
-                        <TableCell className="font-medium">{competition.name}</TableCell>
+                      <StatusContextMenu key={competition.id} competitionId={competition.id}>
+                      <TableRow>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {competition.name}
+                            {competition.overall_status && (
+                              <Badge variant="outline"><Trophy className="mr-1 h-3 w-3" />{getOverallStatusLabel(competition.overall_status)}</Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -552,6 +560,7 @@ const CompetitionsPage: React.FC = () => {
                           </div>
                         </TableCell>
                       </TableRow>
+                      </StatusContextMenu>
                     ))}
                   </TableBody>
                 </Table>
