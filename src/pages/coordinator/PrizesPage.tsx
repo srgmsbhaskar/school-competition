@@ -540,6 +540,35 @@ const PrizesPage: React.FC = () => {
             )}
           </Tabs>
         )}
+
+        <Dialog open={!!drillDown} onOpenChange={(o) => { if (!o) { setDrillDown(null); setDrillRows([]); } }}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Participants — {drillDown?.name}</DialogTitle>
+              <DialogDescription>Students who participated in this competition</DialogDescription>
+            </DialogHeader>
+            {drillLoading ? (
+              <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : drillRows.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">No participants found</div>
+            ) : (
+              <Table>
+                <TableHeader><TableRow><TableHead>Student</TableHead><TableHead>Admission No.</TableHead><TableHead>Class</TableHead><TableHead>Event</TableHead><TableHead>Prize</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {drillRows.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-medium">{r.name}</TableCell>
+                      <TableCell className="font-mono">{r.admission_no}</TableCell>
+                      <TableCell>{r.class}-{r.section}</TableCell>
+                      <TableCell>{r.event}</TableCell>
+                      <TableCell>{r.prize ? <Badge variant={getPrizeBadgeVariant(r.prize)}>{individualPrizeOptions.find((o) => o.value === r.prize)?.label || r.prize}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
