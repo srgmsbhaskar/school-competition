@@ -439,6 +439,53 @@ const ReportsPage: React.FC = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="summary" className="mt-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2"><Award className="h-5 w-5 text-primary" />Competition Summary</CardTitle>
+                    <CardDescription>Participation, winners and overall status for each {departmentLabel.toLowerCase()} competition</CardDescription>
+                  </div>
+                  {summary.length > 0 && (
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={handleExportSummaryPDF}><FileText className="mr-2 h-4 w-4" />PDF</Button>
+                      <Button variant="outline" size="sm" onClick={handleExportSummaryExcel}><FileSpreadsheet className="mr-2 h-4 w-4" />Excel</Button>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {summary.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">No competitions found</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Competition</TableHead>
+                        <TableHead>Students Participated</TableHead>
+                        <TableHead>No. of Winners</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {summary.map((s) => (
+                        <TableRow key={s.id}>
+                          <TableCell className="font-medium">{s.name}</TableCell>
+                          <TableCell>{s.participants}</TableCell>
+                          <TableCell>{s.winners}</TableCell>
+                          <TableCell>
+                            {s.status === '—' ? <span className="text-muted-foreground">—</span> : <Badge variant="outline">{s.status}</Badge>}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
     </DashboardLayout>
