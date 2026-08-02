@@ -327,6 +327,15 @@ const ReportsPage: React.FC = () => {
                       </Select>
                     </div>
                     <div className="w-44">
+                      <Select value={participationEventFilter} onValueChange={setParticipationEventFilter}>
+                        <SelectTrigger><SelectValue placeholder="All events" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All events</SelectItem>
+                          {participationEventOptions.map((e) => (<SelectItem key={e} value={e}>{e}</SelectItem>))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-44">
                       <Select value={participationSort} onValueChange={(v) => setParticipationSort(v as 'event' | 'class' | 'name')}>
                         <SelectTrigger><SelectValue placeholder="Sort by" /></SelectTrigger>
                         <SelectContent>
