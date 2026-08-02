@@ -364,8 +364,8 @@ const CompetitionsPage: React.FC = () => {
                   ];
                   const color = colorPalette[index % colorPalette.length];
                   return (
+                    <StatusContextMenu key={competition.id} competitionId={competition.id}>
                     <Card
-                      key={competition.id}
                       className={`cursor-pointer hover:shadow-lg transition-all border-2 ${color.border} ${competition.is_frozen ? 'opacity-60' : ''}`}
                       onClick={() => navigate(`/coordinator/${department}/events?competition=${competition.id}`)}
                     >
@@ -394,10 +394,16 @@ const CompetitionsPage: React.FC = () => {
                                 </Badge>
                               )}
                             </div>
+                            {competition.overall_status && (
+                              <Badge className="mt-2 text-xs" variant="outline">
+                                <Trophy className="mr-1 h-3 w-3" />{getOverallStatusLabel(competition.overall_status)}
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       </CardContent>
                     </Card>
+                    </StatusContextMenu>
                   );
                 })}
               </div>
