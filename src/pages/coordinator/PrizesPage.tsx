@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Loader2, Save, Trophy, Award, Upload, FileImage } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -47,6 +48,10 @@ const PrizesPage: React.FC = () => {
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [updatedCompetitionPrizes, setUpdatedCompetitionPrizes] = useState<Record<string, string>>({});
   const [overallPrizes, setOverallPrizes] = useState<OverallPrizeRow[]>([]);
+  const [overallCompetitionFilter, setOverallCompetitionFilter] = useState<string>('all');
+  const [drillDown, setDrillDown] = useState<{ competitionId: string; name: string } | null>(null);
+  const [drillRows, setDrillRows] = useState<{ id: string; name: string; admission_no: string; class: number; section: string; event: string; prize: string | null }[]>([]);
+  const [drillLoading, setDrillLoading] = useState(false);
   const [uploadingCertFor, setUploadingCertFor] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
