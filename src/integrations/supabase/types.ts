@@ -223,6 +223,41 @@ export type Database = {
           },
         ]
       }
+      event_prize_points: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          points: number
+          prize: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          points?: number
+          prize: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          points?: number
+          prize?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_prize_points_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           category_id: string | null
@@ -296,6 +331,7 @@ export type Database = {
           created_at: string | null
           event_id: string
           group_number: number | null
+          house: string | null
           id: string
           prize: Database["public"]["Enums"]["prize_type"] | null
           selected_by: string | null
@@ -308,6 +344,7 @@ export type Database = {
           created_at?: string | null
           event_id: string
           group_number?: number | null
+          house?: string | null
           id?: string
           prize?: Database["public"]["Enums"]["prize_type"] | null
           selected_by?: string | null
@@ -320,6 +357,7 @@ export type Database = {
           created_at?: string | null
           event_id?: string
           group_number?: number | null
+          house?: string | null
           id?: string
           prize?: Database["public"]["Enums"]["prize_type"] | null
           selected_by?: string | null
@@ -492,6 +530,8 @@ export type Database = {
         | "consolation"
         | "champion"
         | "other"
+        | "fourth"
+        | "fifth"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -632,6 +672,8 @@ export const Constants = {
         "consolation",
         "champion",
         "other",
+        "fourth",
+        "fifth",
       ],
     },
   },
