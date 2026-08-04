@@ -448,6 +448,10 @@ export type Database = {
     }
     Functions: {
       can_manage_certificate_path: { Args: { _name: string }; Returns: boolean }
+      can_view_competition: {
+        Args: { _competition_id: string }
+        Returns: boolean
+      }
       competition_academic_year: { Args: { _date: string }; Returns: string }
       has_role: {
         Args: {
