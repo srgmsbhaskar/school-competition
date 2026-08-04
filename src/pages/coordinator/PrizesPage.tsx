@@ -28,6 +28,17 @@ const individualPrizeOptions = [
   { value: 'consolation', label: 'Consolation' },
 ];
 
+const sportsPrizeOptions = [
+  { value: 'first', label: 'First' },
+  { value: 'second', label: 'Second' },
+  { value: 'third', label: 'Third' },
+  { value: 'fourth', label: 'Fourth' },
+  { value: 'fifth', label: 'Fifth' },
+];
+
+const prizeLabel = (value: string) =>
+  [...individualPrizeOptions, ...sportsPrizeOptions].find((o) => o.value === value)?.label || value;
+
 const competitionPrizeOptions = [
   { value: 'champion', label: 'Overall Champion' },
   { value: 'runner_up_1', label: '1st Runner Up' },
@@ -53,9 +64,13 @@ const PrizesPage: React.FC = () => {
   const [drillRows, setDrillRows] = useState<{ id: string; name: string; admission_no: string; class: number; section: string; event: string; prize: string | null }[]>([]);
   const [drillLoading, setDrillLoading] = useState(false);
   const [uploadingCertFor, setUploadingCertFor] = useState<string | null>(null);
+  const [eventPoints, setEventPoints] = useState<Record<string, string>>({});
+  const [isSavingPoints, setIsSavingPoints] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user, role, academicYear } = useAuth();
+  const isSports = department === 'sports';
+  const prizeOptions = isSports ? sportsPrizeOptions : individualPrizeOptions;
 
   useEffect(() => {
     const fetchCompetitions = async () => {
@@ -110,6 +125,36 @@ const PrizesPage: React.FC = () => {
       fetchParticipations();
     }
   }, [selectedEvent]);
+
+  useEffect(() => {
+    if (!selectedEvent || !isSports) { setEventPoints({}); return; }
+    const fetchPoints = async () => {
+      const { data } = await supabase.from('event_prize_points').select('prize, points').eq('event_id', selectedEvent);
+      const map: Record<string, string> = {};
+      (data || []).forEach((r: any) => { map[r.prize] = String(r.points); });
+      setEventPoints(map);
+    };
+    fetchPoints();
+  }, [selectedEvent, isSports]);
+
+  const handleSavePoints = async () => {
+    if (!selectedEvent) return;
+    setIsSavingPoints(true);
+    try {
+      const rows = sportsPrizeOptions
+        .filter((o) => eventPoints[o.value] !== undefined && eventPoints[o.value] !== '')
+        .map((o) => ({ event_id: selectedEvent, prize: o.value, points: Number(eventPoints[o.value]) || 0 }));
+      if (rows.length > 0) {
+        const { error } = await supabase.from('event_prize_points').upsert(rows, { onConflict: 'event_id,prize' });
+        if (error) throw error;
+      }
+      toast({ title: 'Success', description: 'Prize points saved' });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to save points', variant: 'destructive' });
+    } finally {
+      setIsSavingPoints(false);
+    }
+  };
 
   const fetchCompetitionPrizes = async () => {
     const { data } = await supabase.from('competition_prizes').select('*, student:students(*)').eq('competition_id', selectedCompetition);
