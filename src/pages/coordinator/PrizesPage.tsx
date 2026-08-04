@@ -339,6 +339,38 @@ const PrizesPage: React.FC = () => {
             </TabsList>
 
             <TabsContent value="events" className="mt-6">
+              {isSports && selectedEvent && (
+                <Card className="mb-6">
+                  <CardHeader>
+                    <div className="flex items-center justify-between flex-wrap gap-4">
+                      <div>
+                        <CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" />Prize Points for this Event</CardTitle>
+                        <CardDescription>Points awarded to each place in this event. Used to calculate house totals.</CardDescription>
+                      </div>
+                      <Button onClick={handleSavePoints} disabled={isSavingPoints}>
+                        {isSavingPoints ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>) : (<><Save className="mr-2 h-4 w-4" />Save Points</>)}
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      {sportsPrizeOptions.map((o) => (
+                        <div key={o.value} className="space-y-1">
+                          <label className="text-sm text-muted-foreground" htmlFor={`points-${o.value}`}>{o.label}</label>
+                          <Input
+                            id={`points-${o.value}`}
+                            type="number"
+                            min={0}
+                            value={eventPoints[o.value] ?? ''}
+                            placeholder="0"
+                            onChange={(e) => setEventPoints((prev) => ({ ...prev, [o.value]: e.target.value }))}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -390,13 +422,13 @@ const PrizesPage: React.FC = () => {
                                   <div className="flex items-center gap-3">
                                     {groupPrize && groupPrize !== '' && (
                                       <Badge variant={getPrizeBadgeVariant(groupPrize)}>
-                                        {individualPrizeOptions.find((o) => o.value === groupPrize)?.label || groupPrize}
+                                        {prizeLabel(groupPrize)}
                                       </Badge>
                                     )}
                                     <Select value={groupPrize} onValueChange={(value) => handlePrizeChange(`group_${groupNumber}`, value)}>
                                       <SelectTrigger className="w-40"><SelectValue placeholder="Select prize" /></SelectTrigger>
                                       <SelectContent>
-                                        {individualPrizeOptions.map((option) => (<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>))}
+                                        {prizeOptions.map((option) => (<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>))}
                                       </SelectContent>
                                     </Select>
                                   </div>
@@ -434,13 +466,13 @@ const PrizesPage: React.FC = () => {
                             <TableCell className="font-mono">{p.student?.admission_no}</TableCell>
                             <TableCell>{p.student?.class}-{p.student?.section}</TableCell>
                             <TableCell>
-                              {p.prize ? (<Badge variant={getPrizeBadgeVariant(p.prize)}>{individualPrizeOptions.find((o) => o.value === p.prize)?.label || p.prize}</Badge>) : (<span className="text-muted-foreground">—</span>)}
+                              {p.prize ? (<Badge variant={getPrizeBadgeVariant(p.prize)}>{prizeLabel(p.prize)}</Badge>) : (<span className="text-muted-foreground">—</span>)}
                             </TableCell>
                             <TableCell>
                               <Select value={getPrizeValue(p)} onValueChange={(value) => handlePrizeChange(p.id, value)}>
                                 <SelectTrigger className="w-40"><SelectValue placeholder="Select prize" /></SelectTrigger>
                                 <SelectContent>
-                                  {individualPrizeOptions.map((option) => (<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>))}
+                                  {prizeOptions.map((option) => (<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>))}
                                 </SelectContent>
                               </Select>
                             </TableCell>
@@ -606,7 +638,7 @@ const PrizesPage: React.FC = () => {
                       <TableCell className="font-mono">{r.admission_no}</TableCell>
                       <TableCell>{r.class}-{r.section}</TableCell>
                       <TableCell>{r.event}</TableCell>
-                      <TableCell>{r.prize ? <Badge variant={getPrizeBadgeVariant(r.prize)}>{individualPrizeOptions.find((o) => o.value === r.prize)?.label || r.prize}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
+                      <TableCell>{r.prize ? <Badge variant={getPrizeBadgeVariant(r.prize)}>{prizeLabel(r.prize)}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
