@@ -613,6 +613,103 @@ const ReportsPage: React.FC = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {isSports && (
+            <TabsContent value="houses" className="mt-6">
+              <Card className="mb-6">
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" />House Points</CardTitle>
+                      <CardDescription>Total points scored by each house. Points come from the prize points set for each event.</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="w-44">
+                        <Select value={houseFilter} onValueChange={setHouseFilter}>
+                          <SelectTrigger><SelectValue placeholder="All houses" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All houses</SelectItem>
+                            {HOUSES.map((h) => (<SelectItem key={h} value={h}>{h}</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="w-44">
+                        <Select value={houseEventFilter} onValueChange={setHouseEventFilter}>
+                          <SelectTrigger><SelectValue placeholder="All events" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All events</SelectItem>
+                            {houseEventOptions.map((e) => (<SelectItem key={e} value={e}>{e}</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="w-36">
+                        <Select value={houseClassFilter} onValueChange={setHouseClassFilter}>
+                          <SelectTrigger><SelectValue placeholder="All classes" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All classes</SelectItem>
+                            {houseClassOptions.map((c) => (<SelectItem key={c} value={String(c)}>Class {c}</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={handleExportHousePDF}><FileText className="mr-2 h-4 w-4" />PDF</Button>
+                        <Button variant="outline" size="sm" onClick={handleExportHouseExcel}><FileSpreadsheet className="mr-2 h-4 w-4" />Excel</Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow><TableHead className="w-12">Rank</TableHead><TableHead>House</TableHead><TableHead>Participations</TableHead><TableHead>Winners</TableHead><TableHead>Total Points</TableHead></TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {houseTotals.map((t, idx) => (
+                        <TableRow key={t.house}>
+                          <TableCell className="font-bold">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}</TableCell>
+                          <TableCell className="font-medium">{t.house}</TableCell>
+                          <TableCell>{t.participants}</TableCell>
+                          <TableCell>{t.winners}</TableCell>
+                          <TableCell className="font-semibold">{t.points}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Detailed Breakdown</CardTitle>
+                  <CardDescription>Every participation counted towards the house totals above</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {filteredHouseRows.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">No participation records found</div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow><TableHead>House</TableHead><TableHead>Student</TableHead><TableHead>Admission No.</TableHead><TableHead>Class</TableHead><TableHead>Event</TableHead><TableHead>Prize</TableHead><TableHead>Points</TableHead></TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredHouseRows.map((r) => (
+                          <TableRow key={r.id}>
+                            <TableCell>{r.house}</TableCell>
+                            <TableCell className="font-medium">{r.student_name}</TableCell>
+                            <TableCell className="font-mono">{r.admission_no}</TableCell>
+                            <TableCell>{r.class}-{r.section}</TableCell>
+                            <TableCell>{r.event_name}</TableCell>
+                            <TableCell>{r.prize ? (<Badge variant={getPrizeBadgeVariant(r.prize)}>{formatPrize(r.prize)}</Badge>) : (<span className="text-muted-foreground">—</span>)}</TableCell>
+                            <TableCell className="font-semibold">{r.points}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </DashboardLayout>
