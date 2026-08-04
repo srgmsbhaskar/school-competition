@@ -413,6 +413,9 @@ const ReportsPage: React.FC = () => {
             <TabsTrigger value="participation" className="flex items-center gap-2"><Users className="h-4 w-4" />Participation</TabsTrigger>
             <TabsTrigger value="winners" className="flex items-center gap-2"><Trophy className="h-4 w-4" />Prize Winners</TabsTrigger>
             <TabsTrigger value="summary" className="flex items-center gap-2"><Award className="h-4 w-4" />Competition Summary</TabsTrigger>
+            {isSports && (
+              <TabsTrigger value="houses" className="flex items-center gap-2"><Trophy className="h-4 w-4" />House Points</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="participation" className="mt-6">
