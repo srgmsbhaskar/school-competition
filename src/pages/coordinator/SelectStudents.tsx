@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useDepartment } from '@/hooks/useDepartment';
 import { forceAcademicYear } from '@/lib/academicYear';
+import { HOUSES, autoHouse, requiresHouseSelection, resolveHouse } from '@/lib/houses';
 
 interface Competition { id: string; name: string; }
 interface Event { id: string; name: string; event_type: 'solo' | 'group'; classes: number[]; }
@@ -39,6 +40,8 @@ const CoordinatorSelectStudents: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [groups, setGroups] = useState<GroupData[]>([]);
   const [activeGroupIndex, setActiveGroupIndex] = useState<number>(0);
+  const [houses, setHouses] = useState<Record<string, string>>({});
+  const isSports = department === 'sports';
 
   const selectedEventData = events.find((e) => e.id === selectedEvent);
   const isGroupEvent = selectedEventData?.event_type === 'group';
@@ -105,8 +108,12 @@ const CoordinatorSelectStudents: React.FC = () => {
   };
 
   const fetchExistingParticipations = async () => {
-    const { data } = await supabase.from('student_participations').select('student_id, event_id, group_number').eq('event_id', selectedEvent);
+    const { data } = await supabase.from('student_participations').select('student_id, event_id, group_number, house').eq('event_id', selectedEvent);
     const event = events.find((e) => e.id === selectedEvent);
+
+    const houseMap: Record<string, string> = {};
+    (data || []).forEach((p: any) => { if (p.house) houseMap[p.student_id] = p.house; });
+    setHouses(houseMap);
 
     if (event?.event_type === 'group') {
       const groupMap = new Map<number, Set<string>>();
@@ -164,6 +171,29 @@ const CoordinatorSelectStudents: React.FC = () => {
 
   const handleSave = async () => {
     if (!selectedEvent || !selectedCompetition) return;
+
+    const selectedIds = isGroupEvent
+      ? groups.flatMap((g) => [...g.studentIds])
+      : [...selectedStudents];
+
+    if (isSports) {
+      const missing = selectedIds.filter((id) => {
+        const s = students.find((st) => st.id === id);
+        if (!s) return false;
+        return requiresHouseSelection(s.class) && !houses[id];
+      });
+      if (missing.length > 0) {
+        toast({ title: 'House required', description: `Select a house for ${missing.length} student(s) in classes 8-12.`, variant: 'destructive' });
+        return;
+      }
+    }
+
+    const houseFor = (studentId: string) => {
+      if (!isSports) return null;
+      const s = students.find((st) => st.id === studentId);
+      return resolveHouse(houses[studentId], s?.class ?? 0, s?.section);
+    };
+
     setIsSaving(true);
     try {
       await supabase.from('student_participations').delete().eq('event_id', selectedEvent);
@@ -171,14 +201,14 @@ const CoordinatorSelectStudents: React.FC = () => {
         const inserts: any[] = [];
         groups.forEach((group) => {
           group.studentIds.forEach((studentId) => {
-            inserts.push({ student_id: studentId, event_id: selectedEvent, competition_id: selectedCompetition, selected_by: user?.id, group_number: group.groupNumber });
+            inserts.push({ student_id: studentId, event_id: selectedEvent, competition_id: selectedCompetition, selected_by: user?.id, group_number: group.groupNumber, house: houseFor(studentId) });
           });
         });
         if (inserts.length > 0) await supabase.from('student_participations').insert(inserts);
       } else {
         if (selectedStudents.size > 0) {
           await supabase.from('student_participations').insert(
-            [...selectedStudents].map((studentId) => ({ student_id: studentId, event_id: selectedEvent, competition_id: selectedCompetition, selected_by: user?.id }))
+            [...selectedStudents].map((studentId) => ({ student_id: studentId, event_id: selectedEvent, competition_id: selectedCompetition, selected_by: user?.id, house: houseFor(studentId) }))
           );
         }
       }
@@ -308,6 +338,7 @@ const CoordinatorSelectStudents: React.FC = () => {
                       <TableHead>Name</TableHead>
                       <TableHead>Class</TableHead>
                       <TableHead>Section</TableHead>
+                      {isSports && <TableHead>House</TableHead>}
                       {isGroupEvent && <TableHead>Group</TableHead>}
                     </TableRow>
                   </TableHeader>
@@ -323,6 +354,23 @@ const CoordinatorSelectStudents: React.FC = () => {
                           <TableCell className="font-medium">{student.name}</TableCell>
                           <TableCell>{student.class}</TableCell>
                           <TableCell>{student.section}</TableCell>
+                          {isSports && (
+                            <TableCell>
+                              {requiresHouseSelection(student.class) ? (
+                                <Select
+                                  value={houses[student.id] || ''}
+                                  onValueChange={(value) => setHouses((prev) => ({ ...prev, [student.id]: value }))}
+                                >
+                                  <SelectTrigger className="w-44"><SelectValue placeholder="Select house" /></SelectTrigger>
+                                  <SelectContent>
+                                    {HOUSES.map((h) => (<SelectItem key={h} value={h}>{h}</SelectItem>))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <Badge variant="outline">{autoHouse(student.class, student.section) || '—'}</Badge>
+                              )}
+                            </TableCell>
+                          )}
                           {isGroupEvent && (
                             <TableCell>
                               {assignedGroup ? (<Badge variant="outline">Group {assignedGroup.groupNumber}</Badge>) : (<span className="text-muted-foreground">—</span>)}

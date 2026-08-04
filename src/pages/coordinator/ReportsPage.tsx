@@ -15,11 +15,13 @@ import { useDepartment } from '@/hooks/useDepartment';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { scopeToAcademicYear, getAcademicYearRange } from '@/lib/academicYear';
+import { HOUSES, resolveHouse } from '@/lib/houses';
 
 interface Competition { id: string; name: string; competition_date: string; venue: string; overall_status?: string | null; }
 interface CompetitionSummaryRow { id: string; name: string; participants: number; winners: number; status: string; }
 interface ParticipationReport { id: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; event_type: string; prize: string | null; certificate_url: string | null; }
 interface PrizeWinner { student_name: string; admission_no: string; class: number; section: string; total_prizes: number; prizes: { event: string; prize: string; competition: string; certificate_url?: string | null }[]; }
+interface HousePointRow { id: string; house: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; competition: string; prize: string | null; points: number; }
 
 const prizeRanking: Record<string, number> = {
   winner: 15, runner_up_1: 12, runner_up_2: 10, first: 9, second: 8, third: 5, consolation: 3,
@@ -65,6 +67,11 @@ const ReportsPage: React.FC = () => {
   const [participationSort, setParticipationSort] = useState<'event' | 'class' | 'name'>('event');
   const [participationEventFilter, setParticipationEventFilter] = useState<string>('all');
   const [viewingCertificate, setViewingCertificate] = useState<{ url: string; name: string } | null>(null);
+  const [houseRows, setHouseRows] = useState<HousePointRow[]>([]);
+  const [houseFilter, setHouseFilter] = useState<string>('all');
+  const [houseEventFilter, setHouseEventFilter] = useState<string>('all');
+  const [houseClassFilter, setHouseClassFilter] = useState<string>('all');
+  const isSports = department === 'sports';
 
   useEffect(() => {
     const fetchCompetitions = async () => {
@@ -86,6 +93,52 @@ const ReportsPage: React.FC = () => {
   useEffect(() => { fetchPrizeWinners(); }, [department]);
 
   useEffect(() => { fetchSummary(); }, [competitions]);
+
+  useEffect(() => { if (isSports) fetchHousePoints(); }, [department, role, academicYear]);
+
+  const fetchHousePoints = async () => {
+    const { data: deptCompetitions } = await scopeToAcademicYear(
+      supabase.from('competitions').select('id, name').eq('department', department),
+      role,
+      academicYear,
+    );
+    const comps = deptCompetitions || [];
+    if (comps.length === 0) { setHouseRows([]); return; }
+    const compNames = new Map(comps.map((c: any) => [c.id, c.name]));
+
+    const { rows } = await fetchPaginated<any>((from, to) =>
+      supabase
+        .from('student_participations')
+        .select('id, prize, house, competition_id, student:students(name, admission_no, class, section), event:events(id, name)')
+        .in('competition_id', Array.from(compNames.keys()))
+        .range(from, to),
+    );
+
+    const eventIds = Array.from(new Set(rows.map((r: any) => r.event?.id).filter(Boolean)));
+    const pointsMap = new Map<string, number>();
+    if (eventIds.length > 0) {
+      const { data: pointsData } = await supabase
+        .from('event_prize_points')
+        .select('event_id, prize, points')
+        .in('event_id', eventIds);
+      (pointsData || []).forEach((p: any) => pointsMap.set(`${p.event_id}|${p.prize}`, p.points));
+    }
+
+    setHouseRows(
+      rows.map((r: any) => ({
+        id: r.id,
+        house: resolveHouse(r.house, r.student?.class ?? 0, r.student?.section) || '—',
+        student_name: r.student?.name || '',
+        admission_no: r.student?.admission_no || '',
+        class: r.student?.class || 0,
+        section: r.student?.section || '',
+        event_name: r.event?.name || '',
+        competition: compNames.get(r.competition_id) || '',
+        prize: r.prize,
+        points: r.prize ? pointsMap.get(`${r.event?.id}|${r.prize}`) || 0 : 0,
+      })),
+    );
+  };
 
   const fetchSummary = async () => {
     if (competitions.length === 0) { setSummary([]); return; }
@@ -175,9 +228,62 @@ const ReportsPage: React.FC = () => {
   };
 
   const formatPrize = (prize: string) => {
-    const labels: Record<string, string> = { winner: 'Winner', runner_up_1: 'Runner Up 1', runner_up_2: 'Runner Up 2', first: 'First', second: 'Second', third: 'Third', consolation: 'Consolation' };
+    const labels: Record<string, string> = { winner: 'Winner', runner_up_1: 'Runner Up 1', runner_up_2: 'Runner Up 2', first: 'First', second: 'Second', third: 'Third', fourth: 'Fourth', fifth: 'Fifth', consolation: 'Consolation' };
     return labels[prize] || prize;
   };
+
+  const filteredHouseRows = React.useMemo(
+    () =>
+      houseRows
+        .filter((r) => houseFilter === 'all' || r.house === houseFilter)
+        .filter((r) => houseEventFilter === 'all' || r.event_name === houseEventFilter)
+        .filter((r) => houseClassFilter === 'all' || String(r.class) === houseClassFilter)
+        .sort((a, b) => a.house.localeCompare(b.house) || a.event_name.localeCompare(b.event_name) || b.points - a.points),
+    [houseRows, houseFilter, houseEventFilter, houseClassFilter],
+  );
+
+  const houseTotals = React.useMemo(() => {
+    const totals = new Map<string, { house: string; points: number; participants: number; winners: number }>();
+    HOUSES.forEach((h) => totals.set(h, { house: h, points: 0, participants: 0, winners: 0 }));
+    filteredHouseRows.forEach((r) => {
+      if (!totals.has(r.house)) totals.set(r.house, { house: r.house, points: 0, participants: 0, winners: 0 });
+      const t = totals.get(r.house)!;
+      t.points += r.points;
+      t.participants += 1;
+      if (r.prize) t.winners += 1;
+    });
+    return Array.from(totals.values()).sort((a, b) => b.points - a.points);
+  }, [filteredHouseRows]);
+
+  const houseEventOptions = React.useMemo(
+    () => Array.from(new Set(houseRows.map((r) => r.event_name).filter(Boolean))).sort(),
+    [houseRows],
+  );
+  const houseClassOptions = React.useMemo(
+    () => Array.from(new Set(houseRows.map((r) => r.class).filter(Boolean))).sort((a, b) => a - b),
+    [houseRows],
+  );
+
+  const houseDetailColumns = [
+    { header: 'House', key: 'house' },
+    { header: 'Student', key: 'student_name' },
+    { header: 'Admission No.', key: 'admission_no' },
+    { header: 'Class', key: 'class_section' },
+    { header: 'Event', key: 'event_name' },
+    { header: 'Prize', key: 'prize' },
+    { header: 'Points', key: 'points' },
+  ];
+
+  const houseExportData = () => [
+    ...houseTotals.map((t) => ({ house: t.house, student_name: 'TOTAL', admission_no: '', class_section: '', event_name: '', prize: `${t.winners} winner(s)`, points: t.points })),
+    ...filteredHouseRows.map((r) => ({ house: r.house, student_name: r.student_name, admission_no: r.admission_no, class_section: `${r.class}-${r.section}`, event_name: r.event_name, prize: r.prize ? formatPrize(r.prize) : '—', points: r.points })),
+  ];
+
+  const houseReportTitle = () =>
+    `House Points Report - ${departmentLabel}\nHouse: ${houseFilter === 'all' ? 'All' : houseFilter} | Event: ${houseEventFilter === 'all' ? 'All' : houseEventFilter} | Class: ${houseClassFilter === 'all' ? 'All' : houseClassFilter}`;
+
+  const handleExportHousePDF = () => exportToPDF(houseExportData(), houseDetailColumns, houseReportTitle(), 'house-points-report', pageSize);
+  const handleExportHouseExcel = () => exportToExcel(houseExportData(), houseDetailColumns, 'House Points', 'house-points-report', houseReportTitle());
 
   const selectedCompetitionData = competitions.find((c) => c.id === selectedCompetition);
 
@@ -307,6 +413,9 @@ const ReportsPage: React.FC = () => {
             <TabsTrigger value="participation" className="flex items-center gap-2"><Users className="h-4 w-4" />Participation</TabsTrigger>
             <TabsTrigger value="winners" className="flex items-center gap-2"><Trophy className="h-4 w-4" />Prize Winners</TabsTrigger>
             <TabsTrigger value="summary" className="flex items-center gap-2"><Award className="h-4 w-4" />Competition Summary</TabsTrigger>
+            {isSports && (
+              <TabsTrigger value="houses" className="flex items-center gap-2"><Trophy className="h-4 w-4" />House Points</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="participation" className="mt-6">
@@ -504,6 +613,103 @@ const ReportsPage: React.FC = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {isSports && (
+            <TabsContent value="houses" className="mt-6">
+              <Card className="mb-6">
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" />House Points</CardTitle>
+                      <CardDescription>Total points scored by each house. Points come from the prize points set for each event.</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="w-44">
+                        <Select value={houseFilter} onValueChange={setHouseFilter}>
+                          <SelectTrigger><SelectValue placeholder="All houses" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All houses</SelectItem>
+                            {HOUSES.map((h) => (<SelectItem key={h} value={h}>{h}</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="w-44">
+                        <Select value={houseEventFilter} onValueChange={setHouseEventFilter}>
+                          <SelectTrigger><SelectValue placeholder="All events" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All events</SelectItem>
+                            {houseEventOptions.map((e) => (<SelectItem key={e} value={e}>{e}</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="w-36">
+                        <Select value={houseClassFilter} onValueChange={setHouseClassFilter}>
+                          <SelectTrigger><SelectValue placeholder="All classes" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All classes</SelectItem>
+                            {houseClassOptions.map((c) => (<SelectItem key={c} value={String(c)}>Class {c}</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={handleExportHousePDF}><FileText className="mr-2 h-4 w-4" />PDF</Button>
+                        <Button variant="outline" size="sm" onClick={handleExportHouseExcel}><FileSpreadsheet className="mr-2 h-4 w-4" />Excel</Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow><TableHead className="w-12">Rank</TableHead><TableHead>House</TableHead><TableHead>Participations</TableHead><TableHead>Winners</TableHead><TableHead>Total Points</TableHead></TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {houseTotals.map((t, idx) => (
+                        <TableRow key={t.house}>
+                          <TableCell className="font-bold">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}</TableCell>
+                          <TableCell className="font-medium">{t.house}</TableCell>
+                          <TableCell>{t.participants}</TableCell>
+                          <TableCell>{t.winners}</TableCell>
+                          <TableCell className="font-semibold">{t.points}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Detailed Breakdown</CardTitle>
+                  <CardDescription>Every participation counted towards the house totals above</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {filteredHouseRows.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">No participation records found</div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow><TableHead>House</TableHead><TableHead>Student</TableHead><TableHead>Admission No.</TableHead><TableHead>Class</TableHead><TableHead>Event</TableHead><TableHead>Prize</TableHead><TableHead>Points</TableHead></TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredHouseRows.map((r) => (
+                          <TableRow key={r.id}>
+                            <TableCell>{r.house}</TableCell>
+                            <TableCell className="font-medium">{r.student_name}</TableCell>
+                            <TableCell className="font-mono">{r.admission_no}</TableCell>
+                            <TableCell>{r.class}-{r.section}</TableCell>
+                            <TableCell>{r.event_name}</TableCell>
+                            <TableCell>{r.prize ? (<Badge variant={getPrizeBadgeVariant(r.prize)}>{formatPrize(r.prize)}</Badge>) : (<span className="text-muted-foreground">—</span>)}</TableCell>
+                            <TableCell className="font-semibold">{r.points}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </DashboardLayout>
