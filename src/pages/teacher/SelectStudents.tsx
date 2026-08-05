@@ -426,6 +426,7 @@ const SelectStudents: React.FC = () => {
                       <TableHead>Name</TableHead>
                       <TableHead>Class</TableHead>
                       <TableHead>Section</TableHead>
+                      {isSports && <TableHead>House</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -442,6 +443,23 @@ const SelectStudents: React.FC = () => {
                         <TableCell className="font-medium">{student.name}</TableCell>
                         <TableCell>{student.class}</TableCell>
                         <TableCell>{student.section}</TableCell>
+                        {isSports && (
+                          <TableCell>
+                            {requiresHouseSelection(student.class) ? (
+                              <Select
+                                value={houses[student.id] || ''}
+                                onValueChange={(value) => setHouses((prev) => ({ ...prev, [student.id]: value }))}
+                              >
+                                <SelectTrigger className="w-44"><SelectValue placeholder="Select house" /></SelectTrigger>
+                                <SelectContent>
+                                  {HOUSES.map((h) => (<SelectItem key={h} value={h}>{h}</SelectItem>))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Badge variant="outline">{autoHouse(student.class, student.section) || '—'}</Badge>
+                            )}
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
