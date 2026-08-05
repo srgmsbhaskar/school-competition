@@ -166,6 +166,39 @@ const CompetitionsPage: React.FC = () => {
     setEditedGrades(prev => ({ ...prev, [competitionId]: grade }));
   };
 
+  const openEdit = (competition: Competition) => {
+    setEditCompetition(competition);
+    setEditForm({
+      name: competition.name,
+      competition_date: competition.competition_date,
+      venue: competition.venue,
+    });
+  };
+
+  const handleUpdateCompetition = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editCompetition) return;
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase
+        .from('competitions')
+        .update({
+          name: editForm.name,
+          competition_date: editForm.competition_date,
+          venue: editForm.venue,
+        })
+        .eq('id', editCompetition.id);
+      if (error) throw error;
+      toast({ title: 'Success', description: 'Competition updated' });
+      setEditCompetition(null);
+      fetchCompetitions();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to update competition', variant: 'destructive' });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleSave = async () => {
     if (Object.keys(editedGrades).length === 0 && Object.keys(editedStatuses).length === 0) return;
 
