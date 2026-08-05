@@ -14,10 +14,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { FrozenBanner } from '@/components/FrozenBanner';
 import { forceAcademicYear } from '@/lib/academicYear';
+import { HOUSES, autoHouse, requiresHouseSelection, resolveHouse } from '@/lib/houses';
 
 interface Competition {
   id: string;
   name: string;
+  department?: string;
 }
 
 interface Event {
@@ -58,6 +60,10 @@ const SelectStudents: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [houses, setHouses] = useState<Record<string, string>>({});
+
+  const isSports =
+    competitions.find((c) => c.id === selectedCompetition)?.department === 'sports';
 
   useEffect(() => {
     const fetchAssignedCompetitions = async () => {
@@ -78,7 +84,7 @@ const SelectStudents: React.FC = () => {
       const { data: competitionsData } = await forceAcademicYear(
         supabase
           .from('competitions')
-          .select('id, name, competition_date')
+          .select('id, name, competition_date, department')
           .in('id', competitionIds),
         academicYear,
       );
@@ -167,10 +173,14 @@ const SelectStudents: React.FC = () => {
   const fetchExistingParticipations = async () => {
     const { data } = await supabase
       .from('student_participations')
-      .select('student_id, event_id')
+      .select('student_id, event_id, house')
       .eq('event_id', selectedEvent);
 
     setExistingParticipations(data || []);
+
+    const houseMap: Record<string, string> = {};
+    (data || []).forEach((p: any) => { if (p.house) houseMap[p.student_id] = p.house; });
+    setHouses(houseMap);
     
     // Set selected students based on existing participations
     const participatingStudentIds = new Set((data || []).map((p) => p.student_id));
@@ -191,6 +201,27 @@ const SelectStudents: React.FC = () => {
 
   const handleSave = async () => {
     if (!selectedEvent || !selectedCompetition) return;
+
+    if (isSports) {
+      const missing = [...selectedStudents].filter((id) => {
+        const s = students.find((st) => st.id === id);
+        return s ? requiresHouseSelection(s.class) && !houses[id] : false;
+      });
+      if (missing.length > 0) {
+        toast({
+          title: 'House required',
+          description: `Select a house for ${missing.length} student(s) in class VII and above.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    const houseFor = (studentId: string) => {
+      if (!isSports) return null;
+      const s = students.find((st) => st.id === studentId);
+      return resolveHouse(houses[studentId], s?.class ?? 0, s?.section);
+    };
 
     setIsSaving(true);
     try {
@@ -217,9 +248,24 @@ const SelectStudents: React.FC = () => {
           event_id: selectedEvent,
           competition_id: selectedCompetition,
           selected_by: user?.id,
+          house: houseFor(studentId),
         }));
 
         await supabase.from('student_participations').insert(newParticipations);
+      }
+
+      // Keep houses in sync for students that stay selected
+      if (isSports) {
+        const staying = [...selectedStudents].filter((id) => currentStudentIds.has(id));
+        await Promise.all(
+          staying.map((id) =>
+            supabase
+              .from('student_participations')
+              .update({ house: houseFor(id) })
+              .eq('event_id', selectedEvent)
+              .eq('student_id', id),
+          ),
+        );
       }
 
       // Remove participations
