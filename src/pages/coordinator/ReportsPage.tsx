@@ -21,7 +21,7 @@ interface Competition { id: string; name: string; competition_date: string; venu
 interface CompetitionSummaryRow { id: string; name: string; participants: number; winners: number; status: string; }
 interface ParticipationReport { id: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; event_type: string; prize: string | null; certificate_url: string | null; }
 interface PrizeWinner { student_name: string; admission_no: string; class: number; section: string; total_prizes: number; prizes: { event: string; prize: string; competition: string; certificate_url?: string | null }[]; }
-interface HousePointRow { id: string; house: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; competition: string; prize: string | null; points: number; group_number: number | null; event_type: string; }
+interface HousePointRow { id: string; house: string; student_name: string; admission_no: string; class: number; section: string; event_id: string; event_name: string; competition: string; prize: string | null; points: number; max_points: number; group_number: number | null; event_type: string; }
 
 const prizeRanking: Record<string, number> = {
   winner: 15, runner_up_1: 12, runner_up_2: 10, first: 9, second: 8, third: 5, consolation: 3,
@@ -145,10 +145,12 @@ const ReportsPage: React.FC = () => {
           admission_no: r.student?.admission_no || '',
           class: r.student?.class || 0,
           section: r.student?.section || '',
+          event_id: r.event?.id || '',
           event_name: r.event?.name || '',
           competition: compNames.get(r.competition_id) || '',
           prize: r.prize,
           points,
+          max_points: pointsMap.get(`${r.event?.id}|first`) || 0,
           group_number: r.group_number ?? null,
           event_type: r.event?.event_type || 'solo',
         };
