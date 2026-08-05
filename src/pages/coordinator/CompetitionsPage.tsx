@@ -10,7 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
-import { Plus, Loader2, Eye, Calendar, MapPin, Trash2, Save, Snowflake, Unlock, Trophy } from 'lucide-react';
+import { Plus, Loader2, Eye, Calendar, MapPin, Trash2, Save, Snowflake, Unlock, Trophy, Pencil } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -53,6 +53,9 @@ const CompetitionsPage: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [editCompetition, setEditCompetition] = useState<Competition | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', competition_date: '', venue: '' });
+  const [isUpdating, setIsUpdating] = useState(false);
   const [editedGrades, setEditedGrades] = useState<Record<string, string>>({});
   const [editedStatuses, setEditedStatuses] = useState<Record<string, string>>({});
   const [newCompetition, setNewCompetition] = useState({
