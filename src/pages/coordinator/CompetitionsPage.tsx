@@ -593,6 +593,11 @@ const CompetitionsPage: React.FC = () => {
                                 </AlertDialogContent>
                               </AlertDialog>
                             )}
+                            {canManage && (
+                              <Button variant="ghost" size="sm" onClick={() => openEdit(competition)} title="Edit competition">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
