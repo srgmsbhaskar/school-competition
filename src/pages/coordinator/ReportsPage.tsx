@@ -281,10 +281,6 @@ const ReportsPage: React.FC = () => {
     [filteredHouseRows, houseDrillDown],
   );
 
-  const unusedHouseEventOptions = React.useMemo(
-    () => Array.from(new Set(houseRows.map((r) => r.event_name).filter(Boolean))).sort(),
-    [houseRows],
-  );
   const houseClassOptions = React.useMemo(
     () => Array.from(new Set(houseRows.map((r) => r.class).filter(Boolean))).sort((a, b) => a - b),
     [houseRows],
