@@ -653,7 +653,7 @@ const ReportsPage: React.FC = () => {
                   <div className="flex items-center justify-between flex-wrap gap-4">
                     <div>
                       <CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" />House Points</CardTitle>
-                      <CardDescription>Total points scored by each house. Points come from the prize points set for each event.</CardDescription>
+                      <CardDescription>Points scored out of the maximum possible — first-prize points for every event the house entered.</CardDescription>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <div className="w-44">
@@ -693,7 +693,7 @@ const ReportsPage: React.FC = () => {
                 <CardContent>
                   <Table>
                     <TableHeader>
-                      <TableRow><TableHead className="w-12">Rank</TableHead><TableHead>House</TableHead><TableHead>Participations</TableHead><TableHead>Winners</TableHead><TableHead>Total Points</TableHead></TableRow>
+                      <TableRow><TableHead className="w-12">Rank</TableHead><TableHead>House</TableHead><TableHead>Events</TableHead><TableHead>Participations</TableHead><TableHead>Winners</TableHead><TableHead>Points Scored</TableHead><TableHead>Max Points</TableHead><TableHead>%</TableHead></TableRow>
                     </TableHeader>
                     <TableBody>
                       {houseTotals.map((t, idx) => (
@@ -704,9 +704,12 @@ const ReportsPage: React.FC = () => {
                         >
                           <TableCell className="font-bold">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}</TableCell>
                           <TableCell className="font-medium">{t.house}</TableCell>
+                          <TableCell>{t.events}</TableCell>
                           <TableCell>{t.participants}</TableCell>
                           <TableCell>{t.winners}</TableCell>
-                          <TableCell className="font-semibold">{t.points}</TableCell>
+                          <TableCell className="font-semibold">{t.points} / {t.maxPoints}</TableCell>
+                          <TableCell>{t.maxPoints}</TableCell>
+                          <TableCell>{t.maxPoints > 0 ? `${Math.round((t.points / t.maxPoints) * 100)}%` : '—'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
