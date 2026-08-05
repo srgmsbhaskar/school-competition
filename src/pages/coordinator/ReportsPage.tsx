@@ -21,7 +21,7 @@ interface Competition { id: string; name: string; competition_date: string; venu
 interface CompetitionSummaryRow { id: string; name: string; participants: number; winners: number; status: string; }
 interface ParticipationReport { id: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; event_type: string; prize: string | null; certificate_url: string | null; }
 interface PrizeWinner { student_name: string; admission_no: string; class: number; section: string; total_prizes: number; prizes: { event: string; prize: string; competition: string; certificate_url?: string | null }[]; }
-interface HousePointRow { id: string; house: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; competition: string; prize: string | null; points: number; }
+interface HousePointRow { id: string; house: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; competition: string; prize: string | null; points: number; group_number: number | null; event_type: string; }
 
 const prizeRanking: Record<string, number> = {
   winner: 15, runner_up_1: 12, runner_up_2: 10, first: 9, second: 8, third: 5, consolation: 3,
@@ -71,6 +71,7 @@ const ReportsPage: React.FC = () => {
   const [houseFilter, setHouseFilter] = useState<string>('all');
   const [houseEventFilter, setHouseEventFilter] = useState<string>('all');
   const [houseClassFilter, setHouseClassFilter] = useState<string>('all');
+  const [houseDrillDown, setHouseDrillDown] = useState<string | null>(null);
   const isSports = department === 'sports';
 
   useEffect(() => {
@@ -109,7 +110,7 @@ const ReportsPage: React.FC = () => {
     const { rows } = await fetchPaginated<any>((from, to) =>
       supabase
         .from('student_participations')
-        .select('id, prize, house, competition_id, student:students(name, admission_no, class, section), event:events(id, name)')
+        .select('id, prize, house, group_number, competition_id, student:students(name, admission_no, class, section), event:events(id, name, event_type)')
         .in('competition_id', Array.from(compNames.keys()))
         .range(from, to),
     );
@@ -124,19 +125,34 @@ const ReportsPage: React.FC = () => {
       (pointsData || []).forEach((p: any) => pointsMap.set(`${p.event_id}|${p.prize}`, p.points));
     }
 
+    // Group events score once for the whole group: the points land on the first
+    // member of each (event, group, prize) and the rest carry 0 to avoid double counting.
+    const countedGroups = new Set<string>();
     setHouseRows(
-      rows.map((r: any) => ({
-        id: r.id,
-        house: resolveHouse(r.house, r.student?.class ?? 0, r.student?.section) || '—',
-        student_name: r.student?.name || '',
-        admission_no: r.student?.admission_no || '',
-        class: r.student?.class || 0,
-        section: r.student?.section || '',
-        event_name: r.event?.name || '',
-        competition: compNames.get(r.competition_id) || '',
-        prize: r.prize,
-        points: r.prize ? pointsMap.get(`${r.event?.id}|${r.prize}`) || 0 : 0,
-      })),
+      rows.map((r: any) => {
+        const basePoints = r.prize ? pointsMap.get(`${r.event?.id}|${r.prize}`) || 0 : 0;
+        const isGroup = r.event?.event_type === 'group';
+        let points = basePoints;
+        if (isGroup && basePoints > 0) {
+          const key = `${r.event?.id}|${r.group_number ?? 1}|${r.prize}`;
+          if (countedGroups.has(key)) points = 0;
+          else countedGroups.add(key);
+        }
+        return {
+          id: r.id,
+          house: resolveHouse(r.house, r.student?.class ?? 0, r.student?.section) || '—',
+          student_name: r.student?.name || '',
+          admission_no: r.student?.admission_no || '',
+          class: r.student?.class || 0,
+          section: r.student?.section || '',
+          event_name: r.event?.name || '',
+          competition: compNames.get(r.competition_id) || '',
+          prize: r.prize,
+          points,
+          group_number: r.group_number ?? null,
+          event_type: r.event?.event_type || 'solo',
+        };
+      }),
     );
   };
 
@@ -259,6 +275,12 @@ const ReportsPage: React.FC = () => {
     () => Array.from(new Set(houseRows.map((r) => r.event_name).filter(Boolean))).sort(),
     [houseRows],
   );
+
+  const drillDownRows = React.useMemo(
+    () => filteredHouseRows.filter((r) => r.house === houseDrillDown),
+    [filteredHouseRows, houseDrillDown],
+  );
+
   const houseClassOptions = React.useMemo(
     () => Array.from(new Set(houseRows.map((r) => r.class).filter(Boolean))).sort((a, b) => a - b),
     [houseRows],
@@ -665,7 +687,11 @@ const ReportsPage: React.FC = () => {
                     </TableHeader>
                     <TableBody>
                       {houseTotals.map((t, idx) => (
-                        <TableRow key={t.house}>
+                        <TableRow
+                          key={t.house}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => setHouseDrillDown(t.house)}
+                        >
                           <TableCell className="font-bold">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}</TableCell>
                           <TableCell className="font-medium">{t.house}</TableCell>
                           <TableCell>{t.participants}</TableCell>
@@ -675,6 +701,7 @@ const ReportsPage: React.FC = () => {
                       ))}
                     </TableBody>
                   </Table>
+                  <p className="mt-3 text-xs text-muted-foreground">Click a house to see the participations behind its points.</p>
                 </CardContent>
               </Card>
 
@@ -689,7 +716,7 @@ const ReportsPage: React.FC = () => {
                   ) : (
                     <Table>
                       <TableHeader>
-                        <TableRow><TableHead>House</TableHead><TableHead>Student</TableHead><TableHead>Admission No.</TableHead><TableHead>Class</TableHead><TableHead>Event</TableHead><TableHead>Prize</TableHead><TableHead>Points</TableHead></TableRow>
+                        <TableRow><TableHead>House</TableHead><TableHead>Student</TableHead><TableHead>Admission No.</TableHead><TableHead>Class</TableHead><TableHead>Event</TableHead><TableHead>Group</TableHead><TableHead>Prize</TableHead><TableHead>Points</TableHead></TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredHouseRows.map((r) => (
@@ -699,6 +726,7 @@ const ReportsPage: React.FC = () => {
                             <TableCell className="font-mono">{r.admission_no}</TableCell>
                             <TableCell>{r.class}-{r.section}</TableCell>
                             <TableCell>{r.event_name}</TableCell>
+                            <TableCell>{r.event_type === 'group' ? `Group ${r.group_number ?? 1}` : '—'}</TableCell>
                             <TableCell>{r.prize ? (<Badge variant={getPrizeBadgeVariant(r.prize)}>{formatPrize(r.prize)}</Badge>) : (<span className="text-muted-foreground">—</span>)}</TableCell>
                             <TableCell className="font-semibold">{r.points}</TableCell>
                           </TableRow>
@@ -708,6 +736,39 @@ const ReportsPage: React.FC = () => {
                   )}
                 </CardContent>
               </Card>
+
+              <Dialog open={!!houseDrillDown} onOpenChange={(open) => !open && setHouseDrillDown(null)}>
+                <DialogContent className="max-w-3xl max-h-[80vh] overflow-auto">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {houseDrillDown} — participations
+                      {houseEventFilter !== 'all' ? ` · ${houseEventFilter}` : ''}
+                      {houseClassFilter !== 'all' ? ` · Class ${houseClassFilter}` : ''}
+                    </DialogTitle>
+                  </DialogHeader>
+                  {drillDownRows.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">No participation records found</div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow><TableHead>Student</TableHead><TableHead>Class</TableHead><TableHead>Event</TableHead><TableHead>Group</TableHead><TableHead>Prize</TableHead><TableHead>Points</TableHead></TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {drillDownRows.map((r) => (
+                          <TableRow key={r.id}>
+                            <TableCell className="font-medium">{r.student_name}</TableCell>
+                            <TableCell>{r.class}-{r.section}</TableCell>
+                            <TableCell>{r.event_name}</TableCell>
+                            <TableCell>{r.event_type === 'group' ? `Group ${r.group_number ?? 1}` : '—'}</TableCell>
+                            <TableCell>{r.prize ? (<Badge variant={getPrizeBadgeVariant(r.prize)}>{formatPrize(r.prize)}</Badge>) : (<span className="text-muted-foreground">—</span>)}</TableCell>
+                            <TableCell className="font-semibold">{r.points}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </DialogContent>
+              </Dialog>
             </TabsContent>
           )}
         </Tabs>
