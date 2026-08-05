@@ -21,7 +21,7 @@ interface Competition { id: string; name: string; competition_date: string; venu
 interface CompetitionSummaryRow { id: string; name: string; participants: number; winners: number; status: string; }
 interface ParticipationReport { id: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; event_type: string; prize: string | null; certificate_url: string | null; }
 interface PrizeWinner { student_name: string; admission_no: string; class: number; section: string; total_prizes: number; prizes: { event: string; prize: string; competition: string; certificate_url?: string | null }[]; }
-interface HousePointRow { id: string; house: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; competition: string; prize: string | null; points: number; }
+interface HousePointRow { id: string; house: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; competition: string; prize: string | null; points: number; group_number: number | null; event_type: string; }
 
 const prizeRanking: Record<string, number> = {
   winner: 15, runner_up_1: 12, runner_up_2: 10, first: 9, second: 8, third: 5, consolation: 3,
@@ -71,6 +71,7 @@ const ReportsPage: React.FC = () => {
   const [houseFilter, setHouseFilter] = useState<string>('all');
   const [houseEventFilter, setHouseEventFilter] = useState<string>('all');
   const [houseClassFilter, setHouseClassFilter] = useState<string>('all');
+  const [houseDrillDown, setHouseDrillDown] = useState<string | null>(null);
   const isSports = department === 'sports';
 
   useEffect(() => {
@@ -109,7 +110,7 @@ const ReportsPage: React.FC = () => {
     const { rows } = await fetchPaginated<any>((from, to) =>
       supabase
         .from('student_participations')
-        .select('id, prize, house, competition_id, student:students(name, admission_no, class, section), event:events(id, name)')
+        .select('id, prize, house, group_number, competition_id, student:students(name, admission_no, class, section), event:events(id, name, event_type)')
         .in('competition_id', Array.from(compNames.keys()))
         .range(from, to),
     );
@@ -124,19 +125,34 @@ const ReportsPage: React.FC = () => {
       (pointsData || []).forEach((p: any) => pointsMap.set(`${p.event_id}|${p.prize}`, p.points));
     }
 
+    // Group events score once for the whole group: the points land on the first
+    // member of each (event, group, prize) and the rest carry 0 to avoid double counting.
+    const countedGroups = new Set<string>();
     setHouseRows(
-      rows.map((r: any) => ({
-        id: r.id,
-        house: resolveHouse(r.house, r.student?.class ?? 0, r.student?.section) || '—',
-        student_name: r.student?.name || '',
-        admission_no: r.student?.admission_no || '',
-        class: r.student?.class || 0,
-        section: r.student?.section || '',
-        event_name: r.event?.name || '',
-        competition: compNames.get(r.competition_id) || '',
-        prize: r.prize,
-        points: r.prize ? pointsMap.get(`${r.event?.id}|${r.prize}`) || 0 : 0,
-      })),
+      rows.map((r: any) => {
+        const basePoints = r.prize ? pointsMap.get(`${r.event?.id}|${r.prize}`) || 0 : 0;
+        const isGroup = r.event?.event_type === 'group';
+        let points = basePoints;
+        if (isGroup && basePoints > 0) {
+          const key = `${r.event?.id}|${r.group_number ?? 1}|${r.prize}`;
+          if (countedGroups.has(key)) points = 0;
+          else countedGroups.add(key);
+        }
+        return {
+          id: r.id,
+          house: resolveHouse(r.house, r.student?.class ?? 0, r.student?.section) || '—',
+          student_name: r.student?.name || '',
+          admission_no: r.student?.admission_no || '',
+          class: r.student?.class || 0,
+          section: r.student?.section || '',
+          event_name: r.event?.name || '',
+          competition: compNames.get(r.competition_id) || '',
+          prize: r.prize,
+          points,
+          group_number: r.group_number ?? null,
+          event_type: r.event?.event_type || 'solo',
+        };
+      }),
     );
   };
 

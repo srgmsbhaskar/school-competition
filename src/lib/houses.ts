@@ -16,8 +16,8 @@ const SECTION_TO_HOUSE: Record<string, House> = {
   S: 'Sathyakaman',
 };
 
-/** Classes 1-7 derive their house from the section letter. */
-export const HOUSE_AUTO_MAX_CLASS = 7;
+/** Classes 1-6 derive their house from the section letter; class VII and above choose it. */
+export const HOUSE_AUTO_MAX_CLASS = 6;
 
 export const houseFromSection = (section?: string | null): House | null => {
   if (!section) return null;
