@@ -261,14 +261,22 @@ const ReportsPage: React.FC = () => {
   );
 
   const houseTotals = React.useMemo(() => {
-    const totals = new Map<string, { house: string; points: number; participants: number; winners: number }>();
-    HOUSES.forEach((h) => totals.set(h, { house: h, points: 0, participants: 0, winners: 0 }));
+    const totals = new Map<string, { house: string; points: number; maxPoints: number; events: number; participants: number; winners: number }>();
+    const countedEvents = new Set<string>();
+    HOUSES.forEach((h) => totals.set(h, { house: h, points: 0, maxPoints: 0, events: 0, participants: 0, winners: 0 }));
     filteredHouseRows.forEach((r) => {
-      if (!totals.has(r.house)) totals.set(r.house, { house: r.house, points: 0, participants: 0, winners: 0 });
+      if (!totals.has(r.house)) totals.set(r.house, { house: r.house, points: 0, maxPoints: 0, events: 0, participants: 0, winners: 0 });
       const t = totals.get(r.house)!;
       t.points += r.points;
       t.participants += 1;
       if (r.prize) t.winners += 1;
+      // Maximum possible = first-prize points for each distinct event the house entered
+      const key = `${r.house}|${r.event_id}`;
+      if (r.event_id && !countedEvents.has(key)) {
+        countedEvents.add(key);
+        t.maxPoints += r.max_points;
+        t.events += 1;
+      }
     });
     return Array.from(totals.values()).sort((a, b) => b.points - a.points);
   }, [filteredHouseRows]);
@@ -299,7 +307,7 @@ const ReportsPage: React.FC = () => {
   ];
 
   const houseExportData = () => [
-    ...houseTotals.map((t) => ({ house: t.house, student_name: 'TOTAL', admission_no: '', class_section: '', event_name: '', prize: `${t.winners} winner(s)`, points: t.points })),
+    ...houseTotals.map((t) => ({ house: t.house, student_name: 'TOTAL', admission_no: '', class_section: '', event_name: `${t.events} event(s)`, prize: `${t.winners} winner(s)`, points: `${t.points} / ${t.maxPoints}` })),
     ...filteredHouseRows.map((r) => ({ house: r.house, student_name: r.student_name, admission_no: r.admission_no, class_section: `${r.class}-${r.section}`, event_name: r.event_name, prize: r.prize ? formatPrize(r.prize) : '—', points: r.points })),
   ];
 
