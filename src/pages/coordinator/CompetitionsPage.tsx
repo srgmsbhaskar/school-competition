@@ -283,19 +283,25 @@ const CompetitionsPage: React.FC = () => {
     }
   };
 
-  const StatusContextMenu: React.FC<{ competitionId: string; children: React.ReactNode }> = ({ competitionId, children }) => (
+  const StatusContextMenu: React.FC<{ competition: Competition; children: React.ReactNode }> = ({ competition, children }) => (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-52">
+        {canManage && (
+          <>
+            <ContextMenuItem onSelect={() => openEdit(competition)}>Edit competition</ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
         <ContextMenuLabel>Set Status</ContextMenuLabel>
         <ContextMenuSeparator />
         {overallStatusOptions.map((opt) => (
-          <ContextMenuItem key={opt.value} onSelect={() => handleSetOverallStatus(competitionId, opt.value)}>
+          <ContextMenuItem key={opt.value} onSelect={() => handleSetOverallStatus(competition.id, opt.value)}>
             {opt.label}
           </ContextMenuItem>
         ))}
         <ContextMenuSeparator />
-        <ContextMenuItem onSelect={() => handleSetOverallStatus(competitionId, null)}>Clear status</ContextMenuItem>
+        <ContextMenuItem onSelect={() => handleSetOverallStatus(competition.id, null)}>Clear status</ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -400,7 +406,7 @@ const CompetitionsPage: React.FC = () => {
                   ];
                   const color = colorPalette[index % colorPalette.length];
                   return (
-                    <StatusContextMenu key={competition.id} competitionId={competition.id}>
+                    <StatusContextMenu key={competition.id} competition={competition}>
                     <Card
                       className={`cursor-pointer hover:shadow-lg transition-all border-2 ${color.border} ${competition.is_frozen ? 'opacity-60' : ''}`}
                       onClick={() => navigate(`/coordinator/${department}/events?competition=${competition.id}`)}
@@ -474,7 +480,7 @@ const CompetitionsPage: React.FC = () => {
                   </TableHeader>
                   <TableBody>
                     {competitions.map((competition) => (
-                      <StatusContextMenu key={competition.id} competitionId={competition.id}>
+                      <StatusContextMenu key={competition.id} competition={competition}>
                       <TableRow>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
