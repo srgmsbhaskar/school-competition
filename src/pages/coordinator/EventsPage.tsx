@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Loader2, Trash2 } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -50,6 +50,9 @@ const EventsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [editEvent, setEditEvent] = useState<Event | null>(null);
+  const [editName, setEditName] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
   const [newEvent, setNewEvent] = useState({
     name: '',
     category_id: '',
@@ -165,6 +168,23 @@ const EventsPage: React.FC = () => {
       fetchData();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
+  const handleUpdateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editEvent) return;
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase.from('events').update({ name: editName }).eq('id', editEvent.id);
+      if (error) throw error;
+      toast({ title: 'Event updated' });
+      setEditEvent(null);
+      fetchData();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -294,6 +314,16 @@ const EventsPage: React.FC = () => {
                       </TableCell>
                       <TableCell className="text-right">
                         {canManage && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Edit event name"
+                            onClick={() => { setEditEvent(event); setEditName(event.name); }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canManage && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button variant="ghost" size="sm"><Trash2 className="h-4 w-4 text-destructive" /></Button>
@@ -318,6 +348,27 @@ const EventsPage: React.FC = () => {
             )}
           </CardContent>
         </Card>
+
+        <Dialog open={!!editEvent} onOpenChange={(open) => !open && setEditEvent(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Event</DialogTitle>
+              <DialogDescription>Rename this event</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleUpdateEvent}>
+              <div className="space-y-2 py-4">
+                <Label htmlFor="editEventName">Event Name</Label>
+                <Input id="editEventName" value={editName} onChange={(e) => setEditName(e.target.value)} required />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditEvent(null)}>Cancel</Button>
+                <Button type="submit" disabled={isUpdating}>
+                  {isUpdating ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>) : 'Save Changes'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
