@@ -615,6 +615,37 @@ const CompetitionsPage: React.FC = () => {
             </CardContent>
           </Card>
         )}
+
+        <Dialog open={!!editCompetition} onOpenChange={(open) => !open && setEditCompetition(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Competition</DialogTitle>
+              <DialogDescription>Update the competition details</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleUpdateCompetition}>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Competition Name</Label>
+                  <Input id="edit-name" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-date">Competition Date</Label>
+                  <Input id="edit-date" type="date" value={editForm.competition_date} onChange={(e) => setEditForm({ ...editForm, competition_date: e.target.value })} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-venue">Venue</Label>
+                  <Input id="edit-venue" value={editForm.venue} onChange={(e) => setEditForm({ ...editForm, venue: e.target.value })} required />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditCompetition(null)}>Cancel</Button>
+                <Button type="submit" disabled={isUpdating}>
+                  {isUpdating ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>) : 'Save Changes'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
