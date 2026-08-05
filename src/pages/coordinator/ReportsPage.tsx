@@ -21,7 +21,7 @@ interface Competition { id: string; name: string; competition_date: string; venu
 interface CompetitionSummaryRow { id: string; name: string; participants: number; winners: number; status: string; }
 interface ParticipationReport { id: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; event_type: string; prize: string | null; certificate_url: string | null; }
 interface PrizeWinner { student_name: string; admission_no: string; class: number; section: string; total_prizes: number; prizes: { event: string; prize: string; competition: string; certificate_url?: string | null }[]; }
-interface HousePointRow { id: string; house: string; student_name: string; admission_no: string; class: number; section: string; event_name: string; competition: string; prize: string | null; points: number; group_number: number | null; event_type: string; }
+interface HousePointRow { id: string; house: string; student_name: string; admission_no: string; class: number; section: string; event_id: string; event_name: string; competition: string; prize: string | null; points: number; max_points: number; group_number: number | null; event_type: string; }
 
 const prizeRanking: Record<string, number> = {
   winner: 15, runner_up_1: 12, runner_up_2: 10, first: 9, second: 8, third: 5, consolation: 3,
@@ -145,10 +145,12 @@ const ReportsPage: React.FC = () => {
           admission_no: r.student?.admission_no || '',
           class: r.student?.class || 0,
           section: r.student?.section || '',
+          event_id: r.event?.id || '',
           event_name: r.event?.name || '',
           competition: compNames.get(r.competition_id) || '',
           prize: r.prize,
           points,
+          max_points: pointsMap.get(`${r.event?.id}|first`) || 0,
           group_number: r.group_number ?? null,
           event_type: r.event?.event_type || 'solo',
         };
@@ -259,14 +261,22 @@ const ReportsPage: React.FC = () => {
   );
 
   const houseTotals = React.useMemo(() => {
-    const totals = new Map<string, { house: string; points: number; participants: number; winners: number }>();
-    HOUSES.forEach((h) => totals.set(h, { house: h, points: 0, participants: 0, winners: 0 }));
+    const totals = new Map<string, { house: string; points: number; maxPoints: number; events: number; participants: number; winners: number }>();
+    const countedEvents = new Set<string>();
+    HOUSES.forEach((h) => totals.set(h, { house: h, points: 0, maxPoints: 0, events: 0, participants: 0, winners: 0 }));
     filteredHouseRows.forEach((r) => {
-      if (!totals.has(r.house)) totals.set(r.house, { house: r.house, points: 0, participants: 0, winners: 0 });
+      if (!totals.has(r.house)) totals.set(r.house, { house: r.house, points: 0, maxPoints: 0, events: 0, participants: 0, winners: 0 });
       const t = totals.get(r.house)!;
       t.points += r.points;
       t.participants += 1;
       if (r.prize) t.winners += 1;
+      // Maximum possible = first-prize points for each distinct event the house entered
+      const key = `${r.house}|${r.event_id}`;
+      if (r.event_id && !countedEvents.has(key)) {
+        countedEvents.add(key);
+        t.maxPoints += r.max_points;
+        t.events += 1;
+      }
     });
     return Array.from(totals.values()).sort((a, b) => b.points - a.points);
   }, [filteredHouseRows]);
@@ -297,7 +307,7 @@ const ReportsPage: React.FC = () => {
   ];
 
   const houseExportData = () => [
-    ...houseTotals.map((t) => ({ house: t.house, student_name: 'TOTAL', admission_no: '', class_section: '', event_name: '', prize: `${t.winners} winner(s)`, points: t.points })),
+    ...houseTotals.map((t) => ({ house: t.house, student_name: 'TOTAL', admission_no: '', class_section: '', event_name: `${t.events} event(s)`, prize: `${t.winners} winner(s)`, points: `${t.points} / ${t.maxPoints}` })),
     ...filteredHouseRows.map((r) => ({ house: r.house, student_name: r.student_name, admission_no: r.admission_no, class_section: `${r.class}-${r.section}`, event_name: r.event_name, prize: r.prize ? formatPrize(r.prize) : '—', points: r.points })),
   ];
 
@@ -643,7 +653,7 @@ const ReportsPage: React.FC = () => {
                   <div className="flex items-center justify-between flex-wrap gap-4">
                     <div>
                       <CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" />House Points</CardTitle>
-                      <CardDescription>Total points scored by each house. Points come from the prize points set for each event.</CardDescription>
+                      <CardDescription>Points scored out of the maximum possible — first-prize points for every event the house entered.</CardDescription>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <div className="w-44">
@@ -683,7 +693,7 @@ const ReportsPage: React.FC = () => {
                 <CardContent>
                   <Table>
                     <TableHeader>
-                      <TableRow><TableHead className="w-12">Rank</TableHead><TableHead>House</TableHead><TableHead>Participations</TableHead><TableHead>Winners</TableHead><TableHead>Total Points</TableHead></TableRow>
+                      <TableRow><TableHead className="w-12">Rank</TableHead><TableHead>House</TableHead><TableHead>Events</TableHead><TableHead>Participations</TableHead><TableHead>Winners</TableHead><TableHead>Points Scored</TableHead><TableHead>Max Points</TableHead><TableHead>%</TableHead></TableRow>
                     </TableHeader>
                     <TableBody>
                       {houseTotals.map((t, idx) => (
@@ -694,9 +704,12 @@ const ReportsPage: React.FC = () => {
                         >
                           <TableCell className="font-bold">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}</TableCell>
                           <TableCell className="font-medium">{t.house}</TableCell>
+                          <TableCell>{t.events}</TableCell>
                           <TableCell>{t.participants}</TableCell>
                           <TableCell>{t.winners}</TableCell>
-                          <TableCell className="font-semibold">{t.points}</TableCell>
+                          <TableCell className="font-semibold">{t.points} / {t.maxPoints}</TableCell>
+                          <TableCell>{t.maxPoints}</TableCell>
+                          <TableCell>{t.maxPoints > 0 ? `${Math.round((t.points / t.maxPoints) * 100)}%` : '—'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

@@ -10,7 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
-import { Plus, Loader2, Eye, Calendar, MapPin, Trash2, Save, Snowflake, Unlock, Trophy } from 'lucide-react';
+import { Plus, Loader2, Eye, Calendar, MapPin, Trash2, Save, Snowflake, Unlock, Trophy, Pencil } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -53,6 +53,9 @@ const CompetitionsPage: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [editCompetition, setEditCompetition] = useState<Competition | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', competition_date: '', venue: '' });
+  const [isUpdating, setIsUpdating] = useState(false);
   const [editedGrades, setEditedGrades] = useState<Record<string, string>>({});
   const [editedStatuses, setEditedStatuses] = useState<Record<string, string>>({});
   const [newCompetition, setNewCompetition] = useState({
@@ -163,6 +166,39 @@ const CompetitionsPage: React.FC = () => {
     setEditedGrades(prev => ({ ...prev, [competitionId]: grade }));
   };
 
+  const openEdit = (competition: Competition) => {
+    setEditCompetition(competition);
+    setEditForm({
+      name: competition.name,
+      competition_date: competition.competition_date,
+      venue: competition.venue,
+    });
+  };
+
+  const handleUpdateCompetition = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editCompetition) return;
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase
+        .from('competitions')
+        .update({
+          name: editForm.name,
+          competition_date: editForm.competition_date,
+          venue: editForm.venue,
+        })
+        .eq('id', editCompetition.id);
+      if (error) throw error;
+      toast({ title: 'Success', description: 'Competition updated' });
+      setEditCompetition(null);
+      fetchCompetitions();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to update competition', variant: 'destructive' });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleSave = async () => {
     if (Object.keys(editedGrades).length === 0 && Object.keys(editedStatuses).length === 0) return;
 
@@ -247,19 +283,25 @@ const CompetitionsPage: React.FC = () => {
     }
   };
 
-  const StatusContextMenu: React.FC<{ competitionId: string; children: React.ReactNode }> = ({ competitionId, children }) => (
+  const StatusContextMenu: React.FC<{ competition: Competition; children: React.ReactNode }> = ({ competition, children }) => (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-52">
+        {canManage && (
+          <>
+            <ContextMenuItem onSelect={() => openEdit(competition)}>Edit competition</ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
         <ContextMenuLabel>Set Status</ContextMenuLabel>
         <ContextMenuSeparator />
         {overallStatusOptions.map((opt) => (
-          <ContextMenuItem key={opt.value} onSelect={() => handleSetOverallStatus(competitionId, opt.value)}>
+          <ContextMenuItem key={opt.value} onSelect={() => handleSetOverallStatus(competition.id, opt.value)}>
             {opt.label}
           </ContextMenuItem>
         ))}
         <ContextMenuSeparator />
-        <ContextMenuItem onSelect={() => handleSetOverallStatus(competitionId, null)}>Clear status</ContextMenuItem>
+        <ContextMenuItem onSelect={() => handleSetOverallStatus(competition.id, null)}>Clear status</ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -364,7 +406,7 @@ const CompetitionsPage: React.FC = () => {
                   ];
                   const color = colorPalette[index % colorPalette.length];
                   return (
-                    <StatusContextMenu key={competition.id} competitionId={competition.id}>
+                    <StatusContextMenu key={competition.id} competition={competition}>
                     <Card
                       className={`cursor-pointer hover:shadow-lg transition-all border-2 ${color.border} ${competition.is_frozen ? 'opacity-60' : ''}`}
                       onClick={() => navigate(`/coordinator/${department}/events?competition=${competition.id}`)}
@@ -438,7 +480,7 @@ const CompetitionsPage: React.FC = () => {
                   </TableHeader>
                   <TableBody>
                     {competitions.map((competition) => (
-                      <StatusContextMenu key={competition.id} competitionId={competition.id}>
+                      <StatusContextMenu key={competition.id} competition={competition}>
                       <TableRow>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
@@ -557,6 +599,11 @@ const CompetitionsPage: React.FC = () => {
                                 </AlertDialogContent>
                               </AlertDialog>
                             )}
+                            {canManage && (
+                              <Button variant="ghost" size="sm" onClick={() => openEdit(competition)} title="Edit competition">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -568,6 +615,37 @@ const CompetitionsPage: React.FC = () => {
             </CardContent>
           </Card>
         )}
+
+        <Dialog open={!!editCompetition} onOpenChange={(open) => !open && setEditCompetition(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Competition</DialogTitle>
+              <DialogDescription>Update the competition details</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleUpdateCompetition}>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Competition Name</Label>
+                  <Input id="edit-name" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-date">Competition Date</Label>
+                  <Input id="edit-date" type="date" value={editForm.competition_date} onChange={(e) => setEditForm({ ...editForm, competition_date: e.target.value })} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-venue">Venue</Label>
+                  <Input id="edit-venue" value={editForm.venue} onChange={(e) => setEditForm({ ...editForm, venue: e.target.value })} required />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditCompetition(null)}>Cancel</Button>
+                <Button type="submit" disabled={isUpdating}>
+                  {isUpdating ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>) : 'Save Changes'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
