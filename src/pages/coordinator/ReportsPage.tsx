@@ -275,6 +275,16 @@ const ReportsPage: React.FC = () => {
     () => Array.from(new Set(houseRows.map((r) => r.event_name).filter(Boolean))).sort(),
     [houseRows],
   );
+
+  const drillDownRows = React.useMemo(
+    () => filteredHouseRows.filter((r) => r.house === houseDrillDown),
+    [filteredHouseRows, houseDrillDown],
+  );
+
+  const unusedHouseEventOptions = React.useMemo(
+    () => Array.from(new Set(houseRows.map((r) => r.event_name).filter(Boolean))).sort(),
+    [houseRows],
+  );
   const houseClassOptions = React.useMemo(
     () => Array.from(new Set(houseRows.map((r) => r.class).filter(Boolean))).sort((a, b) => a - b),
     [houseRows],
@@ -681,7 +691,11 @@ const ReportsPage: React.FC = () => {
                     </TableHeader>
                     <TableBody>
                       {houseTotals.map((t, idx) => (
-                        <TableRow key={t.house}>
+                        <TableRow
+                          key={t.house}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => setHouseDrillDown(t.house)}
+                        >
                           <TableCell className="font-bold">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}</TableCell>
                           <TableCell className="font-medium">{t.house}</TableCell>
                           <TableCell>{t.participants}</TableCell>
@@ -691,6 +705,7 @@ const ReportsPage: React.FC = () => {
                       ))}
                     </TableBody>
                   </Table>
+                  <p className="mt-3 text-xs text-muted-foreground">Click a house to see the participations behind its points.</p>
                 </CardContent>
               </Card>
 
@@ -705,7 +720,7 @@ const ReportsPage: React.FC = () => {
                   ) : (
                     <Table>
                       <TableHeader>
-                        <TableRow><TableHead>House</TableHead><TableHead>Student</TableHead><TableHead>Admission No.</TableHead><TableHead>Class</TableHead><TableHead>Event</TableHead><TableHead>Prize</TableHead><TableHead>Points</TableHead></TableRow>
+                        <TableRow><TableHead>House</TableHead><TableHead>Student</TableHead><TableHead>Admission No.</TableHead><TableHead>Class</TableHead><TableHead>Event</TableHead><TableHead>Group</TableHead><TableHead>Prize</TableHead><TableHead>Points</TableHead></TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredHouseRows.map((r) => (
@@ -715,6 +730,7 @@ const ReportsPage: React.FC = () => {
                             <TableCell className="font-mono">{r.admission_no}</TableCell>
                             <TableCell>{r.class}-{r.section}</TableCell>
                             <TableCell>{r.event_name}</TableCell>
+                            <TableCell>{r.event_type === 'group' ? `Group ${r.group_number ?? 1}` : '—'}</TableCell>
                             <TableCell>{r.prize ? (<Badge variant={getPrizeBadgeVariant(r.prize)}>{formatPrize(r.prize)}</Badge>) : (<span className="text-muted-foreground">—</span>)}</TableCell>
                             <TableCell className="font-semibold">{r.points}</TableCell>
                           </TableRow>
@@ -724,6 +740,39 @@ const ReportsPage: React.FC = () => {
                   )}
                 </CardContent>
               </Card>
+
+              <Dialog open={!!houseDrillDown} onOpenChange={(open) => !open && setHouseDrillDown(null)}>
+                <DialogContent className="max-w-3xl max-h-[80vh] overflow-auto">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {houseDrillDown} — participations
+                      {houseEventFilter !== 'all' ? ` · ${houseEventFilter}` : ''}
+                      {houseClassFilter !== 'all' ? ` · Class ${houseClassFilter}` : ''}
+                    </DialogTitle>
+                  </DialogHeader>
+                  {drillDownRows.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">No participation records found</div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow><TableHead>Student</TableHead><TableHead>Class</TableHead><TableHead>Event</TableHead><TableHead>Group</TableHead><TableHead>Prize</TableHead><TableHead>Points</TableHead></TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {drillDownRows.map((r) => (
+                          <TableRow key={r.id}>
+                            <TableCell className="font-medium">{r.student_name}</TableCell>
+                            <TableCell>{r.class}-{r.section}</TableCell>
+                            <TableCell>{r.event_name}</TableCell>
+                            <TableCell>{r.event_type === 'group' ? `Group ${r.group_number ?? 1}` : '—'}</TableCell>
+                            <TableCell>{r.prize ? (<Badge variant={getPrizeBadgeVariant(r.prize)}>{formatPrize(r.prize)}</Badge>) : (<span className="text-muted-foreground">—</span>)}</TableCell>
+                            <TableCell className="font-semibold">{r.points}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </DialogContent>
+              </Dialog>
             </TabsContent>
           )}
         </Tabs>
