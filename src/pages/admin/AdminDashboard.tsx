@@ -3,7 +3,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Users, UserPlus, Trophy, Settings, CalendarDays, ChevronRight, Loader2, Layers3, UserRound } from 'lucide-react';
+import { Users, UserPlus, Trophy, Settings, CalendarDays, ChevronRight, Loader2, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,7 +29,7 @@ interface CompetitionTree {
 interface EventTree {
   id: string;
   name: string;
-  classes: number[];
+  winners: string[];
 }
 
 const departmentLabels: Record<Department, string> = {
@@ -57,7 +57,7 @@ const AdminDashboard: React.FC = () => {
       setIsLoadingOverview(true);
 
       try {
-        const [profilesRes, rolesRes, assignmentsRes, competitionsRes, eventsRes, classesRes] = await Promise.all([
+        const [profilesRes, rolesRes, assignmentsRes, competitionsRes, eventsRes, participationsRes] = await Promise.all([
           supabase.from('profiles').select('id, full_name, email'),
           supabase.from('user_roles').select('user_id, role').eq('role', 'department_incharge'),
           supabase.from('department_assignments').select('user_id, department'),
@@ -67,10 +67,13 @@ const AdminDashboard: React.FC = () => {
             'competition_date',
           ),
           supabase.from('events').select('id, name, competition_id'),
-          supabase.from('event_classes').select('event_id, class'),
+          supabase
+            .from('student_participations')
+            .select('event_id, prize, student:students(name)')
+            .not('prize', 'is', null),
         ]);
 
-        const firstError = [profilesRes, rolesRes, assignmentsRes, competitionsRes, eventsRes, classesRes]
+        const firstError = [profilesRes, rolesRes, assignmentsRes, competitionsRes, eventsRes, participationsRes]
           .find((result) => result.error)?.error;
         if (firstError) throw firstError;
 
@@ -94,11 +97,13 @@ const AdminDashboard: React.FC = () => {
           .filter((incharge): incharge is DepartmentIncharge => incharge !== null)
           .sort((a, b) => a.name.localeCompare(b.name));
 
-        const classesByEventId = new Map<string, number[]>();
-        (classesRes.data || []).forEach((eventClass) => {
-          const classes = classesByEventId.get(eventClass.event_id) || [];
-          classes.push(eventClass.class);
-          classesByEventId.set(eventClass.event_id, classes);
+        const winnersByEventId = new Map<string, string[]>();
+        (participationsRes.data || []).forEach((participation: any) => {
+          const name = participation.student?.name;
+          if (!name) return;
+          const winners = winnersByEventId.get(participation.event_id) || [];
+          if (!winners.includes(name)) winners.push(name);
+          winnersByEventId.set(participation.event_id, winners);
         });
 
         const eventsByCompetitionId = new Map<string, EventTree[]>();
@@ -107,7 +112,7 @@ const AdminDashboard: React.FC = () => {
           events.push({
             id: event.id,
             name: event.name,
-            classes: (classesByEventId.get(event.id) || []).sort((a, b) => a - b),
+            winners: (winnersByEventId.get(event.id) || []).sort((a, b) => a.localeCompare(b)),
           });
           eventsByCompetitionId.set(event.competition_id, events);
         });
@@ -249,7 +254,7 @@ const AdminDashboard: React.FC = () => {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <CardTitle>Current Year Competition Overview</CardTitle>
-                <CardDescription>Expand an in-charge, competition, and event to view its classes.</CardDescription>
+              <CardDescription>Expand an in-charge and competition to view event winners.</CardDescription>
               </div>
               <Badge variant="secondary">Academic year {academicYear}</Badge>
             </div>
@@ -343,20 +348,17 @@ const AdminDashboard: React.FC = () => {
                                                           <ChevronRight className={`h-4 w-4 shrink-0 transition-transform ${isEventExpanded ? 'rotate-90' : ''}`} />
                                                           <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
                                                           <span className="min-w-0 flex-1 truncate">{event.name}</span>
-                                                          <span className="shrink-0 text-xs text-muted-foreground">
-                                                            {event.classes.length} {event.classes.length === 1 ? 'class' : 'classes'}
-                                                          </span>
+                                                           {event.winners.length > 0 && (
+                                                             <span className="shrink-0 text-xs text-muted-foreground">
+                                                               {event.winners.length} {event.winners.length === 1 ? 'winner' : 'winners'}
+                                                             </span>
+                                                           )}
                                                         </Button>
 
                                                         {isEventExpanded && (
-                                                          <div className="ml-8 flex items-start gap-2 border-l border-border px-2 py-2 pl-3 text-sm text-muted-foreground">
-                                                            <Layers3 className="mt-0.5 h-4 w-4 shrink-0" />
-                                                            {event.classes.length > 0 ? (
-                                                              <span>Classes: {event.classes.join(', ')}</span>
-                                                            ) : (
-                                                              <span>No classes assigned.</span>
-                                                            )}
-                                                          </div>
+                                                           <div className="ml-8 border-l border-border px-2 py-2 pl-3 text-sm text-muted-foreground">
+                                                             {event.winners.length > 0 && <span>{event.winners.join(', ')}</span>}
+                                                           </div>
                                                         )}
                                                       </div>
                                                     );
