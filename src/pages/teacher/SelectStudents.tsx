@@ -42,6 +42,9 @@ interface Participation {
   event_id: string;
 }
 
+const STUDENT_ROW_CAP = 3000;
+const STUDENT_PAGE_SIZE = 1000;
+
 const SelectStudents: React.FC = () => {
   const [searchParams] = useSearchParams();
   const initialCompetitionId = searchParams.get('competition');
@@ -61,6 +64,7 @@ const SelectStudents: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [houses, setHouses] = useState<Record<string, string>>({});
+  const [studentsTruncated, setStudentsTruncated] = useState(false);
 
   const isSports =
     competitions.find((c) => c.id === selectedCompetition)?.department === 'sports';
@@ -153,19 +157,28 @@ const SelectStudents: React.FC = () => {
 
     setEvents(filteredEvents);
 
-    // Get students from assigned classes filtered by academic year
-    if (classes.length > 0) {
-      const { data: studentsData } = await supabase
+    // Load all students from the teacher's assigned classes, across all pages.
+    const studentsData: Student[] = [];
+    let wasTruncated = false;
+    for (let from = 0; from < STUDENT_ROW_CAP; from += STUDENT_PAGE_SIZE) {
+      const to = Math.min(from + STUDENT_PAGE_SIZE - 1, STUDENT_ROW_CAP - 1);
+      const { data, error } = await supabase
         .from('students')
         .select('*')
         .in('class', classes)
         .eq('academic_year', academicYear)
         .order('class')
         .order('section')
-        .order('s_no');
-
-      setStudents(studentsData || []);
+        .order('s_no')
+        .range(from, to);
+      if (error) throw error;
+      const batch = (data || []) as Student[];
+      studentsData.push(...batch);
+      if (batch.length < to - from + 1) break;
+      if (to === STUDENT_ROW_CAP - 1) wasTruncated = true;
     }
+    setStudents(studentsData);
+    setStudentsTruncated(wasTruncated);
 
     setIsLoading(false);
   };
@@ -416,7 +429,11 @@ const SelectStudents: React.FC = () => {
                 {searchQuery ? 'No students match your search' : 'No eligible students found for this event'}
               </div>
             ) : (
-              <div className="rounded-md border max-h-[500px] overflow-auto">
+              <>
+                {studentsTruncated && (
+                  <p className="mb-3 text-sm text-muted-foreground">Showing the first 3000 eligible students.</p>
+                )}
+                <div className="rounded-md border max-h-[500px] overflow-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -464,7 +481,8 @@ const SelectStudents: React.FC = () => {
                     ))}
                   </TableBody>
                 </Table>
-              </div>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

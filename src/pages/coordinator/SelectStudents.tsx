@@ -21,6 +21,9 @@ interface Event { id: string; name: string; event_type: 'solo' | 'group'; classe
 interface Student { id: string; s_no: number; admission_no: string; name: string; class: number; section: string; }
 interface GroupData { groupNumber: number; studentIds: Set<string>; }
 
+const STUDENT_ROW_CAP = 3000;
+const STUDENT_PAGE_SIZE = 1000;
+
 const CoordinatorSelectStudents: React.FC = () => {
   const { department, departmentLabel } = useDepartment();
   const [searchParams] = useSearchParams();
@@ -41,6 +44,7 @@ const CoordinatorSelectStudents: React.FC = () => {
   const [groups, setGroups] = useState<GroupData[]>([]);
   const [activeGroupIndex, setActiveGroupIndex] = useState<number>(0);
   const [houses, setHouses] = useState<Record<string, string>>({});
+  const [studentsTruncated, setStudentsTruncated] = useState(false);
   const isSports = department === 'sports';
 
   const selectedEventData = events.find((e) => e.id === selectedEvent);
@@ -96,14 +100,31 @@ const CoordinatorSelectStudents: React.FC = () => {
     const event = events.find((e) => e.id === selectedEvent);
     if (!event) { setIsLoading(false); return; }
 
-    let query = supabase.from('students').select('*').order('class').order('section').order('s_no');
-    if (event.classes.length > 0) query = query.in('class', event.classes);
-    // Filter by academic year for dept_incharge and teacher roles
-    if (role === 'department_incharge' || role === 'teacher') {
-      query = query.eq('academic_year', academicYear);
+    const studentsData: Student[] = [];
+    let wasTruncated = false;
+    for (let from = 0; from < STUDENT_ROW_CAP; from += STUDENT_PAGE_SIZE) {
+      const to = Math.min(from + STUDENT_PAGE_SIZE - 1, STUDENT_ROW_CAP - 1);
+      let query = supabase
+        .from('students')
+        .select('*')
+        .order('class')
+        .order('section')
+        .order('s_no')
+        .range(from, to);
+      // An event with no event_classes rows means all classes are eligible.
+      if (event.classes.length > 0) query = query.in('class', event.classes);
+      if (role === 'department_incharge' || role === 'teacher') {
+        query = query.eq('academic_year', academicYear);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      const batch = (data || []) as Student[];
+      studentsData.push(...batch);
+      if (batch.length < to - from + 1) break;
+      if (to === STUDENT_ROW_CAP - 1) wasTruncated = true;
     }
-    const { data: studentsData } = await query;
-    setStudents(studentsData || []);
+    setStudents(studentsData);
+    setStudentsTruncated(wasTruncated);
     setIsLoading(false);
   };
 
@@ -328,7 +349,11 @@ const CoordinatorSelectStudents: React.FC = () => {
             ) : filteredStudents.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">{searchQuery ? 'No students match your search' : 'No eligible students found for this event'}</div>
             ) : (
-              <div className="rounded-md border max-h-[500px] overflow-auto">
+              <>
+                {studentsTruncated && (
+                  <p className="mb-3 text-sm text-muted-foreground">Showing the first 3000 eligible students.</p>
+                )}
+                <div className="rounded-md border max-h-[500px] overflow-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -381,7 +406,8 @@ const CoordinatorSelectStudents: React.FC = () => {
                     })}
                   </TableBody>
                 </Table>
-              </div>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
