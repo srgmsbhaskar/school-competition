@@ -14,6 +14,9 @@ const PAGE_HEIGHT = PAGE_WIDTH * (1066 / 1600);
 const TEMPLATE_URL = certificateTemplate.url;
 const CERTIFICATE_BLUE = [26, 57, 131] as const;
 
+export const isCertificatePrizeWinner = (prize: string | null): prize is string =>
+  prize !== null && prize !== 'participation';
+
 const textWidthFitted = (
   doc: jsPDF,
   text: string,

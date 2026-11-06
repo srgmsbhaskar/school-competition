@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDepartment } from '@/hooks/useDepartment';
 import { forceAcademicYear } from '@/lib/academicYear';
-import { downloadWinnerCertificate, printWinnerCertificates, type WinnerCertificate } from '@/lib/certificatePdf';
+import { downloadWinnerCertificate, isCertificatePrizeWinner, printWinnerCertificates, type WinnerCertificate } from '@/lib/certificatePdf';
 import { toast } from 'sonner';
 
 interface Competition { id: string; name: string; competition_date: string; }
@@ -65,11 +65,11 @@ const CertificatesPage: React.FC = () => {
         .from('student_participations')
         .select('id, prize, student:students(name, class, section), event:events(name)')
         .eq('competition_id', selectedCompetition)
-        .not('prize', 'is', null)
-        .neq('prize', 'participation');
-      setRows((data as any) || []);
+        .not('prize', 'is', null);
+      const prizeWinners = ((data || []) as ParticipationRow[]).filter((row) => isCertificatePrizeWinner(row.prize));
+      setRows(prizeWinners);
       const initial: Record<string, boolean> = {};
-      (data || []).forEach((r: any) => { initial[r.id] = true; });
+      prizeWinners.forEach((r) => { initial[r.id] = true; });
       setSelected(initial);
       setIsLoading(false);
     };
@@ -108,6 +108,10 @@ const CertificatesPage: React.FC = () => {
   const handlePrint = () => {
     const opened = printWinnerCertificates(selectedRows.map(toCertificate));
     if (!opened) toast.error('Allow pop-ups to print certificates.');
+  };
+
+  const handlePrintOne = (row: ParticipationRow) => {
+    if (!printWinnerCertificates([toCertificate(row)])) toast.error('Allow pop-ups to print certificates.');
   };
 
   return (
@@ -156,7 +160,7 @@ const CertificatesPage: React.FC = () => {
                     <TableHead>Class</TableHead>
                     <TableHead>Event</TableHead>
                     <TableHead>Prize</TableHead>
-                    <TableHead className="w-28 text-right">Certificate</TableHead>
+                    <TableHead className="w-36 text-right">Certificate</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -172,17 +176,22 @@ const CertificatesPage: React.FC = () => {
                       <TableCell>{r.student?.class}-{r.student?.section}</TableCell>
                       <TableCell>{r.event?.name}</TableCell>
                       <TableCell>{prizeLabel[r.prize || ''] || r.prize}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => void handleDownload(r)}
-                          disabled={downloadingId === r.id}
-                          aria-label={`Download certificate for ${r.student?.name || 'student'}`}
-                        >
-                          {downloadingId === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
-                          PDF
-                        </Button>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void handleDownload(r)}
+                            disabled={downloadingId === r.id}
+                            aria-label={`Download certificate for ${r.student?.name || 'student'}`}
+                          >
+                            {downloadingId === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
+                            PDF
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handlePrintOne(r)} aria-label={`Print certificate for ${r.student?.name || 'student'}`} title="Print certificate">
+                            <Printer className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
