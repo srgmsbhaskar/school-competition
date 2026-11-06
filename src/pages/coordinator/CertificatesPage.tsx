@@ -1,16 +1,17 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, Printer, Award } from 'lucide-react';
+import { Download, Loader2, Printer, Award } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDepartment } from '@/hooks/useDepartment';
 import { forceAcademicYear } from '@/lib/academicYear';
-import schoolEmblem from '@/assets/school-emblem.jpg';
+import { downloadWinnerCertificate, printWinnerCertificates, type WinnerCertificate } from '@/lib/certificatePdf';
+import { toast } from 'sonner';
 
 interface Competition { id: string; name: string; competition_date: string; }
 interface ParticipationRow {
@@ -39,7 +40,7 @@ const CertificatesPage: React.FC = () => {
   const [rows, setRows] = useState<ParticipationRow[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const printRef = useRef<HTMLDivElement>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCompetitions = async () => {
@@ -64,7 +65,8 @@ const CertificatesPage: React.FC = () => {
         .from('student_participations')
         .select('id, prize, student:students(name, class, section), event:events(name)')
         .eq('competition_id', selectedCompetition)
-        .not('prize', 'is', null);
+        .not('prize', 'is', null)
+        .neq('prize', 'participation');
       setRows((data as any) || []);
       const initial: Record<string, boolean> = {};
       (data || []).forEach((r: any) => { initial[r.id] = true; });
@@ -84,32 +86,28 @@ const CertificatesPage: React.FC = () => {
     setSelected(next);
   };
 
+  const toCertificate = (row: ParticipationRow): WinnerCertificate => ({
+    studentName: row.student?.name || 'Student',
+    className: `${row.student?.class ?? ''}-${row.student?.section ?? ''}`,
+    eventName: row.event?.name || 'Competition Event',
+    prizeName: prizeLabel[row.prize || ''] || row.prize || 'Prize Winner',
+    competitionName: competition?.name || 'Intraschool Competition',
+  });
+
+  const handleDownload = async (row: ParticipationRow) => {
+    setDownloadingId(row.id);
+    try {
+      await downloadWinnerCertificate(toCertificate(row));
+    } catch {
+      toast.error('Unable to download this certificate. Please try again.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const handlePrint = () => {
-    if (!printRef.current) return;
-    const html = printRef.current.innerHTML;
-    const w = window.open('', '_blank', 'width=1100,height=800');
-    if (!w) return;
-    w.document.write(`<!doctype html><html><head><title>Certificates</title>
-      <style>
-        @page { size: A4 landscape; margin: 0; }
-        * { box-sizing: border-box; }
-        body { margin: 0; font-family: Georgia, 'Times New Roman', serif; color: #1e3a8a; }
-        .cert { width: 297mm; height: 210mm; padding: 14mm; page-break-after: always; position: relative; }
-        .cert:last-child { page-break-after: auto; }
-        .frame { border: 3px solid #4a90c8; border-radius: 6px; padding: 6px; height: 100%; }
-        .inner { border: 1px solid #4a90c8; border-radius: 4px; height: 100%; padding: 18mm 22mm; display: flex; flex-direction: column; align-items: center; text-align: center; }
-        .school { font-family: 'Arial Black', Arial, sans-serif; font-size: 38px; letter-spacing: 4px; color: #1e3a8a; }
-        .sub { font-family: Arial, sans-serif; font-size: 18px; letter-spacing: 6px; margin-top: 4px; color: #1e3a8a; }
-        .emblem { width: 90px; height: 90px; margin: 8px 0; object-fit: contain; }
-        .title { font-family: 'Brush Script MT', cursive; font-size: 60px; color: #1e3a8a; margin-top: 4px; }
-        .year { font-size: 18px; margin-top: 2px; }
-        .body { font-size: 20px; line-height: 2; margin-top: 28px; max-width: 220mm; }
-        .body .blank { display: inline-block; min-width: 220px; border-bottom: 1px solid #1e3a8a; padding: 0 8px; font-weight: 700; }
-        .signs { margin-top: auto; display: flex; justify-content: space-between; width: 100%; padding: 0 4mm; font-size: 13px; letter-spacing: 2px; font-weight: 700; }
-      </style></head><body>${html}</body></html>`);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 400);
+    const opened = printWinnerCertificates(selectedRows.map(toCertificate));
+    if (!opened) toast.error('Allow pop-ups to print certificates.');
   };
 
   return (
@@ -125,7 +123,7 @@ const CertificatesPage: React.FC = () => {
               <div className="flex items-center gap-3">
                 <div className="w-64">
                   <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
-                    <SelectTrigger><SelectValue placeholder="Select competition" /></SelectTrigger>
+                    <SelectTrigger aria-label="Select competition"><SelectValue placeholder="Select competition" /></SelectTrigger>
                     <SelectContent>
                       {competitions.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
                     </SelectContent>
@@ -158,6 +156,7 @@ const CertificatesPage: React.FC = () => {
                     <TableHead>Class</TableHead>
                     <TableHead>Event</TableHead>
                     <TableHead>Prize</TableHead>
+                    <TableHead className="w-28 text-right">Certificate</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -173,6 +172,18 @@ const CertificatesPage: React.FC = () => {
                       <TableCell>{r.student?.class}-{r.student?.section}</TableCell>
                       <TableCell>{r.event?.name}</TableCell>
                       <TableCell>{prizeLabel[r.prize || ''] || r.prize}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void handleDownload(r)}
+                          disabled={downloadingId === r.id}
+                          aria-label={`Download certificate for ${r.student?.name || 'student'}`}
+                        >
+                          {downloadingId === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
+                          PDF
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -181,37 +192,6 @@ const CertificatesPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Hidden printable area */}
-        <div className="hidden">
-          <div ref={printRef}>
-            {selectedRows.map((r) => (
-              <div key={r.id} className="cert">
-                <div className="frame">
-                  <div className="inner">
-                    <div className="school">SRI VAGEESHA VIDHYASHRAM</div>
-                    <div className="sub">SENIOR SECONDARY SCHOOL</div>
-                    <img src={schoolEmblem} alt="emblem" className="emblem" />
-                    <div className="title">Co-Curricular Activity</div>
-                    <div className="year">{yearLabel}</div>
-                    <div className="body">
-                      This is to certify that Master/Miss <span className="blank">{r.student?.name}</span>{' '}
-                      of class <span className="blank">{r.student?.class}-{r.student?.section}</span>{' '}
-                      has won the <span className="blank">{prizeLabel[r.prize || ''] || r.prize}</span>{' '}
-                      prize in the <span className="blank">{r.event?.name}</span> event
-                      {competition ? <> of <span className="blank">{competition.name}</span></> : null}.
-                    </div>
-                    <div className="signs">
-                      <span>PHYSICAL DIRECTOR</span>
-                      <span>CEO</span>
-                      <span>PRINCIPAL</span>
-                      <span>CORRESPONDENT</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </DashboardLayout>
   );
