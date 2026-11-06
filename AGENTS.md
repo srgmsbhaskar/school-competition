@@ -1,0 +1,1 @@
+Keep certificate rendering and export logic in `src/lib/certificatePdf.ts` so the coordinator screen only manages winner selection and actions.
