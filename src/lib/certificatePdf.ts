@@ -89,6 +89,7 @@ export function printWinnerCertificates(certificates: WinnerCertificate[]) {
       <div class="field student">${escapeHtml(certificate.studentName)}</div>
       <div class="field class">${escapeHtml(certificate.className)}</div>
       <div class="field prize">${escapeHtml(certificate.prizeName)}</div>
+      <div class="field awarded">${escapeHtml(certificate.prizeName)}</div>
       <div class="field event">${escapeHtml(certificate.eventName)}</div>
     </section></main>`).join('');
 
@@ -106,7 +107,8 @@ export function printWinnerCertificates(certificates: WinnerCertificate[]) {
       .student { left: 50%; top: 52.7%; width: 27%; font-size: 5.2mm; }
       .class { left: 31.65%; top: 59.5%; width: 15.2%; font-size: 4.2mm; }
       .prize { left: 69.97%; top: 59.5%; width: 15.8%; font-size: 4.2mm; }
-      .event { left: 48.72%; top: 66.1%; width: 29.7%; font-size: 4.8mm; }
+      .awarded { left: 59.05%; top: 59.5%; width: 17%; font-size: 4.2mm; }
+      .event { left: 48.72%; top: 65.3%; width: 29.7%; font-size: 4.8mm; }
       @media screen { body { background: #f2f2f2; } .page { margin: 12px auto; background: white; box-shadow: 0 1px 5px #777; } }
       @media print { .page { box-shadow: none; } }
     </style></head><body>${pages}
