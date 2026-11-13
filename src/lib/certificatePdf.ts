@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import certificateTemplate from '@/assets/internal_winner_certificate_template.jpg.asset.json';
+import certificateTemplate from '@/assets/internal_competition_certificate_template.jpg.asset.json';
 
 export interface WinnerCertificate {
   studentName: string;
@@ -10,9 +10,10 @@ export interface WinnerCertificate {
 }
 
 const PAGE_WIDTH = 297;
-const PAGE_HEIGHT = PAGE_WIDTH * (1066 / 1600);
-const TEMPLATE_URL = certificateTemplate.url;
+const PAGE_HEIGHT = PAGE_WIDTH * (1682 / 2380);
 const CERTIFICATE_BLUE = [26, 57, 131] as const;
+
+const getTemplateUrl = () => new URL(certificateTemplate.url, window.location.origin).toString();
 
 export const isCertificatePrizeWinner = (prize: string | null): prize is string =>
   prize !== null && prize !== 'participation';
@@ -34,7 +35,7 @@ const textWidthFitted = (
 };
 
 export async function downloadWinnerCertificate(certificate: WinnerCertificate) {
-  const response = await fetch(TEMPLATE_URL);
+  const response = await fetch(getTemplateUrl());
   if (!response.ok) throw new Error('The certificate template could not be loaded.');
 
   const imageBlob = await response.blob();
@@ -50,10 +51,10 @@ export async function downloadWinnerCertificate(certificate: WinnerCertificate) 
   doc.setTextColor(...CERTIFICATE_BLUE);
 
   const fields = [
-    { text: certificate.studentName, x: 148.5, y: 107, width: 180, size: 26 },
-    { text: certificate.className, x: 92.8, y: 121.5, width: 48, size: 19 },
-    { text: certificate.prizeName, x: 200, y: 121.5, width: 61, size: 19 },
-    { text: certificate.eventName, x: 149, y: 138, width: 150, size: 22 },
+    { text: certificate.studentName, x: 148.5, y: 110.6, width: 78, size: 26 },
+    { text: certificate.className, x: 94, y: 124.8, width: 45, size: 19 },
+    { text: certificate.prizeName, x: 207.8, y: 124.8, width: 47, size: 19 },
+    { text: certificate.eventName, x: 144.7, y: 138.7, width: 88, size: 22 },
   ];
 
   fields.forEach(({ text, x, y, width, size }) => {
@@ -78,12 +79,13 @@ const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => (
 export function printWinnerCertificates(certificates: WinnerCertificate[]) {
   if (certificates.length === 0) return false;
 
+  const templateUrl = getTemplateUrl();
   const printWindow = window.open('', '_blank', 'width=1100,height=800');
   if (!printWindow) return false;
 
   const pages = certificates.map((certificate) => `
     <main class="page"><section class="certificate">
-      <img class="template" src="${escapeHtml(TEMPLATE_URL)}" alt="Certificate template">
+      <img class="template" src="${escapeHtml(templateUrl)}" alt="Certificate template">
       <div class="field student">${escapeHtml(certificate.studentName)}</div>
       <div class="field class">${escapeHtml(certificate.className)}</div>
       <div class="field prize">${escapeHtml(certificate.prizeName)}</div>
@@ -98,13 +100,13 @@ export function printWinnerCertificates(certificates: WinnerCertificate[]) {
       html, body { margin: 0; padding: 0; }
       .page { width: 297mm; height: 210mm; display: flex; align-items: center; justify-content: center; page-break-after: always; }
       .page:last-child { page-break-after: auto; }
-      .certificate { width: 297mm; height: 197.92mm; position: relative; overflow: hidden; color: #1a3983; font-family: Georgia, 'Times New Roman', serif; font-weight: 700; font-style: italic; text-align: center; }
+      .certificate { width: 297mm; height: 209.82mm; position: relative; overflow: hidden; color: #1a3983; font-family: Georgia, 'Times New Roman', serif; font-weight: 700; font-style: italic; text-align: center; }
       .template { position: absolute; inset: 0; width: 100%; height: 100%; }
       .field { position: absolute; transform: translate(-50%, -50%); line-height: 1.1; overflow-wrap: anywhere; }
-      .student { left: 50%; top: 54%; width: 61%; font-size: 5.2mm; }
-      .class { left: 31.25%; top: 61.4%; width: 17%; font-size: 4.2mm; }
-      .prize { left: 67.2%; top: 61.4%; width: 21%; font-size: 4.2mm; }
-      .event { left: 50.2%; top: 69.2%; width: 55%; font-size: 4.8mm; }
+      .student { left: 50%; top: 52.7%; width: 27%; font-size: 5.2mm; }
+      .class { left: 31.65%; top: 59.5%; width: 15.2%; font-size: 4.2mm; }
+      .prize { left: 69.97%; top: 59.5%; width: 15.8%; font-size: 4.2mm; }
+      .event { left: 48.72%; top: 65.3%; width: 29.7%; font-size: 4.8mm; }
       @media screen { body { background: #f2f2f2; } .page { margin: 12px auto; background: white; box-shadow: 0 1px 5px #777; } }
       @media print { .page { box-shadow: none; } }
     </style></head><body>${pages}
