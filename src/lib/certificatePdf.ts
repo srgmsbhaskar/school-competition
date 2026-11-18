@@ -51,10 +51,10 @@ export async function downloadWinnerCertificate(certificate: WinnerCertificate) 
   doc.setTextColor(...CERTIFICATE_BLUE);
 
   const fields = [
-    { text: certificate.studentName, x: 148.5, y: 110.6, width: 78, size: 26 },
-    { text: certificate.className, x: 94, y: 124.8, width: 45, size: 19 },
-    { text: certificate.prizeName, x: 207.8, y: 124.8, width: 47, size: 19 },
-    { text: certificate.eventName, x: 144.7, y: 138.7, width: 88, size: 22 },
+    { text: certificate.studentName, x: 148.5, y: 105.6, width: 78, size: 26 },
+    { text: certificate.className, x: 94, y: 119.8, width: 45, size: 19 },
+    { text: certificate.prizeName, x: 207.8, y: 119.8, width: 47, size: 19 },
+    { text: certificate.eventName, x: 144.7, y: 133.7, width: 88, size: 22 },
   ];
 
   fields.forEach(({ text, x, y, width, size }) => {
@@ -103,10 +103,10 @@ export function printWinnerCertificates(certificates: WinnerCertificate[]) {
       .certificate { width: 297mm; height: 209.82mm; position: relative; overflow: hidden; color: #1a3983; font-family: Georgia, 'Times New Roman', serif; font-weight: 700; font-style: italic; text-align: center; }
       .template { position: absolute; inset: 0; width: 100%; height: 100%; }
       .field { position: absolute; transform: translate(-50%, -50%); line-height: 1.1; overflow-wrap: anywhere; }
-      .student { left: 50%; top: 52.7%; width: 27%; font-size: 5.2mm; }
-      .class { left: 31.65%; top: 59.5%; width: 15.2%; font-size: 4.2mm; }
-      .prize { left: 69.97%; top: 59.5%; width: 15.8%; font-size: 4.2mm; }
-      .event { left: 48.72%; top: 65.3%; width: 29.7%; font-size: 4.8mm; }
+      .student { left: 50%; top: calc(52.7% - 5mm); width: 27%; font-size: 5.2mm; }
+      .class { left: 31.65%; top: calc(59.5% - 5mm); width: 15.2%; font-size: 4.2mm; }
+      .prize { left: 69.97%; top: calc(59.5% - 5mm); width: 15.8%; font-size: 4.2mm; }
+      .event { left: 48.72%; top: calc(65.3% - 5mm); width: 29.7%; font-size: 4.8mm; }
       @media screen { body { background: #f2f2f2; } .page { margin: 12px auto; background: white; box-shadow: 0 1px 5px #777; } }
       @media print { .page { box-shadow: none; } }
     </style></head><body>${pages}
