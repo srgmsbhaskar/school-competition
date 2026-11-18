@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDepartment } from '@/hooks/useDepartment';
 import { forceAcademicYear } from '@/lib/academicYear';
-import { downloadWinnerCertificate, isCertificatePrizeWinner, printWinnerCertificates, type WinnerCertificate } from '@/lib/certificatePdf';
+import { downloadWinnerCertificate, downloadWinnerCertificates, isCertificatePrizeWinner, printWinnerCertificates, type WinnerCertificate } from '@/lib/certificatePdf';
 import { toast } from 'sonner';
 
 interface Competition { id: string; name: string; competition_date: string; }
@@ -37,10 +37,12 @@ const CertificatesPage: React.FC = () => {
   const { academicYear } = useAuth();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [selectedCompetition, setSelectedCompetition] = useState<string>('');
+  const [selectedClass, setSelectedClass] = useState<string>('all');
   const [rows, setRows] = useState<ParticipationRow[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [isBulkDownloading, setIsBulkDownloading] = useState(false);
 
   useEffect(() => {
     const fetchCompetitions = async () => {
@@ -57,32 +59,58 @@ const CertificatesPage: React.FC = () => {
     if (!selectedCompetition) {
       setRows([]);
       setSelected({});
+      setSelectedClass('all');
       return;
     }
     const fetchRows = async () => {
       setIsLoading(true);
-      const { data } = await supabase
-        .from('student_participations')
-        .select('id, prize, student:students(name, class, section), event:events(name)')
-        .eq('competition_id', selectedCompetition)
-        .not('prize', 'is', null);
-      const prizeWinners = ((data || []) as ParticipationRow[]).filter((row) => isCertificatePrizeWinner(row.prize));
-      setRows(prizeWinners);
-      const initial: Record<string, boolean> = {};
-      prizeWinners.forEach((r) => { initial[r.id] = true; });
-      setSelected(initial);
-      setIsLoading(false);
+      setSelectedClass('all');
+      try {
+        const allRows: ParticipationRow[] = [];
+        const pageSize = 1000;
+        for (let from = 0; ; from += pageSize) {
+          const { data, error } = await supabase
+            .from('student_participations')
+            .select('id, prize, student:students(name, class, section), event:events(name)')
+            .eq('competition_id', selectedCompetition)
+            .not('prize', 'is', null)
+            .order('id')
+            .range(from, from + pageSize - 1);
+          if (error) throw error;
+          const pageRows = (data || []) as ParticipationRow[];
+          allRows.push(...pageRows);
+          if (pageRows.length < pageSize) break;
+        }
+        const prizeWinners = allRows.filter((row) => isCertificatePrizeWinner(row.prize));
+        setRows(prizeWinners);
+        const initial: Record<string, boolean> = {};
+        prizeWinners.forEach((r) => { initial[r.id] = true; });
+        setSelected(initial);
+      } catch {
+        setRows([]);
+        setSelected({});
+        toast.error('Unable to load prize winners. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
     };
     fetchRows();
   }, [selectedCompetition]);
 
-  const selectedRows = useMemo(() => rows.filter((r) => selected[r.id]), [rows, selected]);
+  const classOptions = useMemo(() => [...new Set(rows
+    .map((row) => row.student?.class)
+    .filter((className): className is number => typeof className === 'number'))]
+    .sort((a, b) => a - b), [rows]);
+  const filteredRows = useMemo(() => selectedClass === 'all'
+    ? rows
+    : rows.filter((row) => String(row.student?.class ?? '') === selectedClass), [rows, selectedClass]);
+  const selectedRows = useMemo(() => filteredRows.filter((r) => selected[r.id]), [filteredRows, selected]);
   const competition = competitions.find((c) => c.id === selectedCompetition);
   const yearLabel = academicYear;
 
   const toggleAll = (checked: boolean) => {
-    const next: Record<string, boolean> = {};
-    rows.forEach((r) => { next[r.id] = checked; });
+    const next = { ...selected };
+    filteredRows.forEach((r) => { next[r.id] = checked; });
     setSelected(next);
   };
 
@@ -102,6 +130,19 @@ const CertificatesPage: React.FC = () => {
       toast.error('Unable to download this certificate. Please try again.');
     } finally {
       setDownloadingId(null);
+    }
+  };
+
+  const handleBulkDownload = async () => {
+    if (filteredRows.length === 0) return;
+    setIsBulkDownloading(true);
+    try {
+      const count = await downloadWinnerCertificates(filteredRows.map(toCertificate));
+      toast.success(`${count} individual certificate PDFs downloaded.`);
+    } catch {
+      toast.error('Unable to download certificates. Please try again.');
+    } finally {
+      setIsBulkDownloading(false);
     }
   };
 
@@ -125,6 +166,17 @@ const CertificatesPage: React.FC = () => {
                 <CardDescription>Generate printable certificates for prize winners</CardDescription>
               </div>
               <div className="flex items-center gap-3">
+                <div className="w-44">
+                  <Select value={selectedClass} onValueChange={setSelectedClass} disabled={!selectedCompetition || rows.length === 0}>
+                    <SelectTrigger aria-label="Filter by class"><SelectValue placeholder="All classes" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All classes</SelectItem>
+                      {classOptions.map((className) => (
+                        <SelectItem key={className} value={String(className)}>Class {className}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="w-64">
                   <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
                     <SelectTrigger aria-label="Select competition"><SelectValue placeholder="Select competition" /></SelectTrigger>
@@ -136,6 +188,10 @@ const CertificatesPage: React.FC = () => {
                 <Button onClick={handlePrint} disabled={selectedRows.length === 0}>
                   <Printer className="mr-2 h-4 w-4" />Print ({selectedRows.length})
                 </Button>
+                <Button onClick={() => void handleBulkDownload()} disabled={filteredRows.length === 0 || isBulkDownloading}>
+                  {isBulkDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  Download all ({filteredRows.length})
+                </Button>
               </div>
             </div>
           </CardHeader>
@@ -146,13 +202,15 @@ const CertificatesPage: React.FC = () => {
               <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : rows.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">No prize winners recorded yet for this competition.</div>
+            ) : filteredRows.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">No prize winners match this class.</div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12">
                       <Checkbox
-                        checked={rows.length > 0 && selectedRows.length === rows.length}
+                        checked={filteredRows.length > 0 && selectedRows.length === filteredRows.length}
                         onCheckedChange={(c) => toggleAll(Boolean(c))}
                       />
                     </TableHead>
@@ -164,7 +222,7 @@ const CertificatesPage: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((r) => (
+                  {filteredRows.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell>
                         <Checkbox

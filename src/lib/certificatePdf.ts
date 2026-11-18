@@ -15,6 +15,33 @@ const CERTIFICATE_BLUE = [26, 57, 131] as const;
 
 const getTemplateUrl = () => new URL(certificateTemplate.url, window.location.origin).toString();
 
+let templateDataPromise: Promise<string> | null = null;
+
+const loadTemplateData = () => {
+  if (!templateDataPromise) {
+    templateDataPromise = (async () => {
+      const response = await fetch(getTemplateUrl());
+      if (!response.ok) throw new Error('The certificate template could not be loaded.');
+
+      const imageBlob = await response.blob();
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Unable to read certificate template.'));
+        reader.onerror = () => reject(new Error('Unable to read certificate template.'));
+        reader.readAsDataURL(imageBlob);
+      });
+    })();
+  }
+  return templateDataPromise.catch((error: unknown) => {
+    templateDataPromise = null;
+    throw error;
+  });
+};
+
+export async function prepareWinnerCertificateDownloads() {
+  await loadTemplateData();
+}
+
 export const isCertificatePrizeWinner = (prize: string | null): prize is string =>
   prize !== null && prize !== 'participation';
 
@@ -34,18 +61,7 @@ const textWidthFitted = (
   return size;
 };
 
-export async function downloadWinnerCertificate(certificate: WinnerCertificate) {
-  const response = await fetch(getTemplateUrl());
-  if (!response.ok) throw new Error('The certificate template could not be loaded.');
-
-  const imageBlob = await response.blob();
-  const imageData = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Unable to read certificate template.'));
-    reader.onerror = () => reject(new Error('Unable to read certificate template.'));
-    reader.readAsDataURL(imageBlob);
-  });
-
+const createWinnerCertificatePdf = (certificate: WinnerCertificate, imageData: string) => {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [PAGE_WIDTH, PAGE_HEIGHT] });
   doc.addImage(imageData, 'JPEG', 0, 0, PAGE_WIDTH, PAGE_HEIGHT);
   doc.setTextColor(...CERTIFICATE_BLUE);
@@ -65,7 +81,25 @@ export async function downloadWinnerCertificate(certificate: WinnerCertificate) 
 
   const safeName = certificate.studentName.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'winner';
   const safeEvent = certificate.eventName.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'event';
-  doc.save(`${safeName}-${safeEvent}-certificate.pdf`);
+  const safeClass = certificate.className.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'class';
+  return { doc, filename: `${safeName}-${safeClass}-${safeEvent}-certificate` };
+};
+
+export async function downloadWinnerCertificate(certificate: WinnerCertificate) {
+  const imageData = await loadTemplateData();
+  const { doc, filename } = createWinnerCertificatePdf(certificate, imageData);
+  doc.save(`${filename}.pdf`);
+}
+
+export async function downloadWinnerCertificates(certificateList: WinnerCertificate[]) {
+  if (certificateList.length === 0) return 0;
+
+  const imageData = await loadTemplateData();
+  certificateList.forEach((certificate, index) => {
+    const { doc, filename } = createWinnerCertificatePdf(certificate, imageData);
+    doc.save(`${filename}-${String(index + 1).padStart(3, '0')}.pdf`);
+  });
+  return certificateList.length;
 }
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({

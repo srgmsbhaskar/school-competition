@@ -4,3 +4,4 @@
 - [ ] Replace the earlier image template with the newly uploaded signed PDF template.
 - [ ] Verify the rendered PDF and print template layout.
 - [ ] Check the signed-in winners screen and download flow; this requires an authenticated preview account.
+- [x] Add class filtering and bulk download as separate winner certificate PDFs.
