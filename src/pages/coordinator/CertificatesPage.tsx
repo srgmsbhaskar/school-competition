@@ -10,12 +10,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDepartment } from '@/hooks/useDepartment';
 import { forceAcademicYear } from '@/lib/academicYear';
-import { downloadWinnerCertificate, downloadWinnerCertificates, isCertificatePrizeWinner, printWinnerCertificates, type WinnerCertificate } from '@/lib/certificatePdf';
+import { downloadWinnerCertificate, downloadWinnerCertificates, filterWinnerRows, isCertificatePrizeWinner, printWinnerCertificates, type WinnerCertificate } from '@/lib/certificatePdf';
 import { toast } from 'sonner';
 
 interface Competition { id: string; name: string; competition_date: string; }
 interface ParticipationRow {
   id: string;
+  competition_id: string;
   prize: string | null;
   student: { name: string; class: number; section: string } | null;
   event: { name: string } | null;
@@ -42,7 +43,8 @@ const CertificatesPage: React.FC = () => {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [isBulkDownloading, setIsBulkDownloading] = useState(false);
+  const [bulkDownloadProgress, setBulkDownloadProgress] = useState<{ completed: number; total: number } | null>(null);
+  const isBulkDownloading = bulkDownloadProgress !== null;
 
   useEffect(() => {
     const fetchCompetitions = async () => {
@@ -71,7 +73,7 @@ const CertificatesPage: React.FC = () => {
         for (let from = 0; ; from += pageSize) {
           const { data, error } = await supabase
             .from('student_participations')
-            .select('id, prize, student:students(name, class, section), event:events(name)')
+            .select('id, competition_id, prize, student:students(name, class, section), event:events(name)')
             .eq('competition_id', selectedCompetition)
             .not('prize', 'is', null)
             .order('id')
@@ -101,9 +103,10 @@ const CertificatesPage: React.FC = () => {
     .map((row) => row.student?.class)
     .filter((className): className is number => typeof className === 'number'))]
     .sort((a, b) => a - b), [rows]);
-  const filteredRows = useMemo(() => selectedClass === 'all'
-    ? rows
-    : rows.filter((row) => String(row.student?.class ?? '') === selectedClass), [rows, selectedClass]);
+  const filteredRows = useMemo(
+    () => filterWinnerRows(rows, selectedCompetition, selectedClass),
+    [rows, selectedCompetition, selectedClass],
+  );
   const selectedRows = useMemo(() => filteredRows.filter((r) => selected[r.id]), [filteredRows, selected]);
   const competition = competitions.find((c) => c.id === selectedCompetition);
   const yearLabel = academicYear;
@@ -135,14 +138,17 @@ const CertificatesPage: React.FC = () => {
 
   const handleBulkDownload = async () => {
     if (filteredRows.length === 0) return;
-    setIsBulkDownloading(true);
+    setBulkDownloadProgress({ completed: 0, total: filteredRows.length });
     try {
-      const count = await downloadWinnerCertificates(filteredRows.map(toCertificate));
+      const count = await downloadWinnerCertificates(
+        filteredRows.map(toCertificate),
+        (completed, total) => setBulkDownloadProgress({ completed, total }),
+      );
       toast.success(`${count} individual certificate PDFs downloaded.`);
     } catch {
       toast.error('Unable to download certificates. Please try again.');
     } finally {
-      setIsBulkDownloading(false);
+      setBulkDownloadProgress(null);
     }
   };
 
@@ -167,7 +173,7 @@ const CertificatesPage: React.FC = () => {
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-44">
-                  <Select value={selectedClass} onValueChange={setSelectedClass} disabled={!selectedCompetition || rows.length === 0}>
+                  <Select value={selectedClass} onValueChange={setSelectedClass} disabled={!selectedCompetition || rows.length === 0 || isBulkDownloading}>
                     <SelectTrigger aria-label="Filter by class"><SelectValue placeholder="All classes" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All classes</SelectItem>
@@ -178,19 +184,21 @@ const CertificatesPage: React.FC = () => {
                   </Select>
                 </div>
                 <div className="w-64">
-                  <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
+                  <Select value={selectedCompetition} onValueChange={setSelectedCompetition} disabled={isBulkDownloading}>
                     <SelectTrigger aria-label="Select competition"><SelectValue placeholder="Select competition" /></SelectTrigger>
                     <SelectContent>
                       {competitions.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
                     </SelectContent>
                   </Select>
                 </div>
-                <Button onClick={handlePrint} disabled={selectedRows.length === 0}>
+                <Button onClick={handlePrint} disabled={selectedRows.length === 0 || isBulkDownloading}>
                   <Printer className="mr-2 h-4 w-4" />Print ({selectedRows.length})
                 </Button>
                 <Button onClick={() => void handleBulkDownload()} disabled={filteredRows.length === 0 || isBulkDownloading}>
                   {isBulkDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                  Download all ({filteredRows.length})
+                  {isBulkDownloading
+                    ? `Downloading ${bulkDownloadProgress.completed}/${bulkDownloadProgress.total}`
+                    : `Download all (${filteredRows.length})`}
                 </Button>
               </div>
             </div>
@@ -240,13 +248,13 @@ const CertificatesPage: React.FC = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => void handleDownload(r)}
-                            disabled={downloadingId === r.id}
+                            disabled={downloadingId === r.id || isBulkDownloading}
                             aria-label={`Download certificate for ${r.student?.name || 'student'}`}
                           >
                             {downloadingId === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
                             PDF
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handlePrintOne(r)} aria-label={`Print certificate for ${r.student?.name || 'student'}`} title="Print certificate">
+                          <Button variant="ghost" size="icon" onClick={() => handlePrintOne(r)} disabled={isBulkDownloading} aria-label={`Print certificate for ${r.student?.name || 'student'}`} title="Print certificate">
                             <Printer className="h-4 w-4" />
                           </Button>
                         </div>

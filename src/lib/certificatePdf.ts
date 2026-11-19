@@ -45,6 +45,18 @@ export async function prepareWinnerCertificateDownloads() {
 export const isCertificatePrizeWinner = (prize: string | null): prize is string =>
   prize !== null && prize !== 'participation';
 
+export function filterWinnerRows<T extends { competition_id: string; student: { class: number } | null }>(
+  rows: T[],
+  competitionId: string,
+  classFilter: string,
+) {
+  if (!competitionId) return [];
+  return rows.filter((row) =>
+    row.competition_id === competitionId &&
+    (classFilter === 'all' || String(row.student?.class ?? '') === classFilter),
+  );
+}
+
 const textWidthFitted = (
   doc: jsPDF,
   text: string,
@@ -91,14 +103,21 @@ export async function downloadWinnerCertificate(certificate: WinnerCertificate) 
   doc.save(`${filename}.pdf`);
 }
 
-export async function downloadWinnerCertificates(certificateList: WinnerCertificate[]) {
+export async function downloadWinnerCertificates(
+  certificateList: WinnerCertificate[],
+  onProgress?: (completed: number, total: number) => void,
+) {
   if (certificateList.length === 0) return 0;
 
   const imageData = await loadTemplateData();
-  certificateList.forEach((certificate, index) => {
+  for (const [index, certificate] of certificateList.entries()) {
     const { doc, filename } = createWinnerCertificatePdf(certificate, imageData);
     doc.save(`${filename}-${String(index + 1).padStart(3, '0')}.pdf`);
-  });
+    onProgress?.(index + 1, certificateList.length);
+    if (index < certificateList.length - 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 250));
+    }
+  }
   return certificateList.length;
 }
 
